@@ -2,7 +2,7 @@
 The Repository for the Project Period June 2025.
 
 Possible Ideas:
-0. Train a model to find the ideal stats to win for new tracks using the dataset given from https://github.com/f1db/f1db
+0. Train a model to find the ideal stats to win for new tracks using the dataset given from https://github.com/toUpperCase78/formula1-datasets
 
 1. Aerodynamic Drag and Speed Analysis
 Goal: Estimate aerodynamic drag coefficient for different cars or circuits.
