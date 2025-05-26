@@ -2,7 +2,7 @@ import fastf1
 
 fastf1.Cache.enable_cache('./fastf1cache')
 
-session = fastf1.get_session(2024, 'EMI', 'R')
+session = fastf1.get_session(2024, 'Emilia Romagna Grand Prix', 'R')
 
 session.load(telemetry=True, laps=True, weather=True)
 
