@@ -18,7 +18,7 @@ fastf1.Cache.enable_cache(cache_dir)
 
 # 2) Load the session with everything
 try:
-    session = fastf1.get_session(year, event, session_type)
+    session = fastf1.get_session(session_year, session_event, session_type)
     session.load(telemetry=True, laps=True, weather=True)
 except Exception as e:
     print(f"Failed to load session: {e}")
