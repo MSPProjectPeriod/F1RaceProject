@@ -6,10 +6,10 @@ import os
 ### LOADING & SAVING SESSION DATA TO CVS
 
 #session details
-year = 2024
-event = 'Emilia Romagna Grand Prix'
+session_year = 2024
+session_event = 'Emilia Romagna Grand Prix'
 session_type = 'R'
-session_name = event+'_'+str(year)+'_'+session_type
+session_name = session_event+'_'+str(session_year)+'_'+session_type
 
 # 1) Enable a cache directory (will be created if it doesn't exist)
 cache_dir = './fastf1cache'
