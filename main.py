@@ -97,11 +97,8 @@ def get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pi
     return extra_time_per_lap_per_pit_time_per_pit 
 
 def plot_times(time_per_lap_per_pit_time_per_pit, extra_time_per_lap_per_pit_time_per_pit):
-    for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
+    '''for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
-
-        print(f"pit_{pit} index:\n", data.index)
-        print(f"pit_{pit} values:\n", data.values)
 
         # Plot using a point plot (scatter style)
         plt.plot(range(len(data)), data.values, 'o')  # 'o' for point markers
@@ -109,16 +106,20 @@ def plot_times(time_per_lap_per_pit_time_per_pit, extra_time_per_lap_per_pit_tim
         plt.xlabel('Index')
         plt.ylabel('Value')
         plt.grid(True)
-        plt.show()
+        plt.show()'''
 
     for pit in range(0,len(extra_time_per_lap_per_pit_time_per_pit)):
         data = extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
-
-        print(f"pit_{pit} index:\n", data.index)
-        print(f"pit_{pit} values:\n", data.values)
+        #removing first and last lap due to inconsistencies from starting/pitstopping
+        index = range(1,len(data)-1)
+        values = data.values[1:(len(data)-1)]
+         # Compute linear trend line using pandas (via numpy)
+        coeffs = np.polyfit(index,values, 1)
+        trend = np.poly1d(coeffs)(index)
 
         # Plot using a point plot (scatter style)
-        plt.plot(range(len(data)), data.values, 'o')  # 'o' for point markers
+        plt.plot(index,values, 'o')  # 'o' for point markers
+        plt.plot(index, trend, '-', label='Trend Line')    # Trend line
         plt.title(f'Point Plot of Extra- Lap Times of pit_{pit}')
         plt.xlabel('Index')
         plt.ylabel('Value')
