@@ -113,16 +113,24 @@ def plot_times(time_per_lap_per_pit_time_per_pit, extra_time_per_lap_per_pit_tim
         #removing first and last lap due to inconsistencies from starting/pitstopping
         index = range(1,len(data)-1)
         values = data.values[1:(len(data)-1)]
+
          # Compute linear trend line using pandas (via numpy)
         coeffs = np.polyfit(index,values, 1)
         trend = np.poly1d(coeffs)(index)
+
+        # Compute residuals and standard error
+        residuals = values - trend
+        std_err = np.std(residuals)
+
+         # Plot uncertainty band (±1 std deviation)
+        plt.fill_between(index, trend - std_err, trend + std_err, alpha=0.3, label='±1 Std Error')
 
         # Plot using a point plot (scatter style)
         plt.plot(index,values, 'o')  # 'o' for point markers
         plt.plot(index, trend, '-', label='Trend Line')    # Trend line
         plt.title(f'Point Plot of Extra- Lap Times of pit_{pit}')
-        plt.xlabel('Index')
-        plt.ylabel('Value')
+        plt.xlabel('Laps of '+ session_driver + ' in ' + session_name)
+        plt.ylabel('Lap Times')
         plt.grid(True)
         plt.show()
 
