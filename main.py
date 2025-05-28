@@ -50,6 +50,8 @@ weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', inde
 print("All session data exported to CSV!")
 '''
 
+#functions
+
 def get_pit_time_of_driver(session_driver):
     pit_time = pd.Series(dtype='timedelta64[ns]')
     last_pit_time = pd.to_timedelta(0.0, unit='s')
@@ -76,25 +78,38 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
     for index, value in session.laps.pick_drivers(session_driver).Time.items():
         if not value in pit_time.values:
             time_per_lap = session.laps.pick_drivers(session_driver).iloc[index].LapTime
-            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series(time_per_lap)]) 
+            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])]) 
         else:
             time_per_lap = session.laps.pick_drivers(session_driver).iloc[index].LapTime
-            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series(time_per_lap)]) 
+            time_per_lap_per_pit_time = (pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])]))
             time_per_lap_per_pit_time_per_pit[f"pit_{pit_index}"] = time_per_lap_per_pit_time
             time_per_lap_per_pit_time = pd.Series(dtype='timedelta64[ns]')
             pit_index += 1
-        
     return time_per_lap_per_pit_time_per_pit
 
-#time between pitstops called pit
+def get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pit):
+    extra_time_per_lap_per_pit_time_per_pit = {}
+    for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
+        #we want to get extra time from 2nd lap after pitstop therefore [1] since we start at 0 #time measured in seconds
+        extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"] = (time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].subtract(time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].iloc[1])).dt.total_seconds()
+    return extra_time_per_lap_per_pit_time_per_pit 
+
+###main sequence
+
+#getting pit_time
 pit_time = get_pit_time_of_driver(session_driver)
 print("Pit times: ")
 print(pit_time)
 print("\n")
 
-#get time for each lap in a pit 
+#getting time for each lap in a pit 
 time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, session_driver)
 print("Time per laps per pit (using dictionary for pit): ")
 print(time_per_lap_per_pit_time_per_pit)
 print("\n")
 
+
+extra_time_per_lap_per_pit_time_per_pit = get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pit)
+print("Extra time per laps per pit (using dictionary for pit): ")
+print(extra_time_per_lap_per_pit_time_per_pit)
+print("\n")
