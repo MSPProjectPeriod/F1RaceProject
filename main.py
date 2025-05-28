@@ -26,6 +26,7 @@ except Exception as e:
     print(f"Failed to load session: {e}")
     exit(1)
 
+'''
 # 3) Export laps
 laps = session.laps
 laps.to_csv(csv_location+session_name+'_laps.csv', index=False)
@@ -44,4 +45,4 @@ weather = session.laps.pick_drivers(session_driver).get_weather_data()          
 weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', index=False)
 
 print("All session data exported to CSV!")
-
+'''
