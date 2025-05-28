@@ -27,6 +27,8 @@ except Exception as e:
     print(f"Failed to load session: {e}")
     exit(1)
 
+print("Succesfully loaded session! \n")
+
 '''
 # 3) Export laps
 laps = session.laps
@@ -53,7 +55,8 @@ def get_pit_time_of_driver(session_driver):
     last_pit_time = pd.to_timedelta(0.0, unit='s')
     for index, value in session.laps.pick_drivers(session_driver).Time.items():
         if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.iloc[index]) or index == (len(session.laps.pick_drivers(session_driver).Time)-1):
-            pit_time_element = session.laps.Time.iloc[index] - last_pit_time
+            #pit_time_element = session.laps.Time.iloc[index] - last_pit_time
+            pit_time_element = session.laps.Time.iloc[index] #trying to get times when pits happen
             pit_time = pd.concat([pit_time, pd.Series(pit_time_element)])
             '''print("Pit time dif: ")
             print (pit_time_element)
@@ -66,9 +69,31 @@ def get_pit_time_of_driver(session_driver):
             
     return pit_time
 
+def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
+    time_per_lap_per_pit_time = pd.Series(dtype='timedelta64[ns]')
+    time_per_lap_per_pit_time_per_pit = {}
+    pit_index = 0
+    for index, value in session.laps.pick_drivers(session_driver).Time.items():
+        if not value in pit_time.values:
+            time_per_lap = session.laps.pick_drivers(session_driver).iloc[index].LapTime
+            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series(time_per_lap)]) 
+        else:
+            time_per_lap = session.laps.pick_drivers(session_driver).iloc[index].LapTime
+            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series(time_per_lap)]) 
+            time_per_lap_per_pit_time_per_pit[f"pit_{pit_index}"] = time_per_lap_per_pit_time
+            time_per_lap_per_pit_time = pd.Series(dtype='timedelta64[ns]')
+            pit_index += 1
+        
+    return time_per_lap_per_pit_time_per_pit
 #time between pitstops called pit
 pit_time = get_pit_time_of_driver(session_driver)
+print("Pit times: ")
 print(pit_time)
+
+time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, session_driver)
+print("Time per laps per pit: ")
+print(time_per_lap_per_pit_time_per_pit)
+#print(time_per_lap_per_pit_time_per_pit.iloc[1])
 
 '''for index, value in session.laps.PitInTime.items():
     if not pd.isna(value):
