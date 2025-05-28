@@ -1,5 +1,6 @@
 
 import fastf1
+import numpy as np
 import pandas as pd
 import os
 
@@ -45,4 +46,28 @@ weather = session.laps.pick_drivers(session_driver).get_weather_data()          
 weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', index=False)
 
 print("All session data exported to CSV!")
+'''
+
+#time between pitstops called pit
+pit_time = pd.Series([])
+
+last_pit_time = pd.to_timedelta(0.0, unit='s')
+for index, value in session.laps.pick_drivers(session_driver).Time.items():
+    if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.iloc[index]) or index == (len(session.laps.pick_drivers(session_driver).Time)-1):
+        pit_time_element = session.laps.Time.iloc[index] - last_pit_time
+        print("Pit time dif: ")
+        print (pit_time_element)
+        print("Time of Pit: ")
+        print(session.laps.Time.iloc[index])
+        print("Last Pit time: ")
+        print(last_pit_time)
+        print("\n")
+        if not index+1 >= len(session.laps.pick_drivers(session_driver).PitInTime):
+            last_pit_time = session.laps.Time.iloc[index+1]
+        continue
+
+
+'''for index, value in session.laps.PitInTime.items():
+    if not pd.isna(value):
+        print(f"Index : {index}, Value : {value}")
 '''
