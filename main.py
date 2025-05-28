@@ -79,12 +79,12 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
     pit_index = 0
     for index, value in session.laps.pick_drivers(session_driver).Time.items():
         if not value in pit_time.values:
-            time_per_lap = session.laps.pick_drivers(session_driver).iloc[index].LapTime
-            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])]) 
+            time_per_lap = pd.to_timedelta(session.laps.pick_drivers(session_driver).iloc[index].LapTime)
+            time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])])
         else:
-            time_per_lap = session.laps.pick_drivers(session_driver).iloc[index].LapTime
+            time_per_lap = pd.to_timedelta(session.laps.pick_drivers(session_driver).iloc[index].LapTime)
             time_per_lap_per_pit_time = (pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])]))
-            time_per_lap_per_pit_time_per_pit[f"pit_{pit_index}"] = time_per_lap_per_pit_time
+            time_per_lap_per_pit_time_per_pit[f"pit_{pit_index}"] = time_per_lap_per_pit_time.dt.total_seconds()
             time_per_lap_per_pit_time = pd.Series(dtype='timedelta64[ns]')
             pit_index += 1
     return time_per_lap_per_pit_time_per_pit
@@ -93,10 +93,10 @@ def get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pi
     extra_time_per_lap_per_pit_time_per_pit = {}
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         #we want to get extra time from 2nd lap after pitstop therefore [1] since we start at 0 #time measured in seconds
-        extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"] = (time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].subtract(time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].iloc[1])).dt.total_seconds()
+        extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"] = (time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].subtract(time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].iloc[1]))
     return extra_time_per_lap_per_pit_time_per_pit 
 
-def plot_times(time_per_lap_per_pit_time_per_pit):
+def plot_times(time_per_lap_per_pit_time_per_pit, extra_time_per_lap_per_pit_time_per_pit):
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
 
@@ -105,19 +105,35 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
 
         # Plot using a point plot (scatter style)
         plt.plot(range(len(data)), data.values, 'o')  # 'o' for point markers
-        plt.title('Point Plot of Time')
+        plt.title(f'Point Plot of Lap Times of pit_{pit}')
         plt.xlabel('Index')
         plt.ylabel('Value')
         plt.grid(True)
         plt.show()
 
+    for pit in range(0,len(extra_time_per_lap_per_pit_time_per_pit)):
+        data = extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
+
+        print(f"pit_{pit} index:\n", data.index)
+        print(f"pit_{pit} values:\n", data.values)
+
+        # Plot using a point plot (scatter style)
+        plt.plot(range(len(data)), data.values, 'o')  # 'o' for point markers
+        plt.title(f'Point Plot of Extra- Lap Times of pit_{pit}')
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+        plt.grid(True)
+        plt.show()
+
+
+
 ###main sequence
 
 #getting pit_time
 pit_time = get_pit_time_of_driver(session_driver)
-print("Pit times: ")
+'''print("Pit times: ")
 print(pit_time)
-print("\n")
+print("\n")'''
 
 #getting time for each lap in a pit 
 time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, session_driver)
@@ -131,4 +147,4 @@ print("Extra time per laps per pit (using dictionary for pit): ")
 print(extra_time_per_lap_per_pit_time_per_pit)
 print("\n")
 
-plot_times(time_per_lap_per_pit_time_per_pit)
+plot_times(time_per_lap_per_pit_time_per_pit,extra_time_per_lap_per_pit_time_per_pit)
