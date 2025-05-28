@@ -44,3 +44,4 @@ weather = session.laps.pick_drivers(session_driver).get_weather_data()          
 weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', index=False)
 
 print("All session data exported to CSV!")
+
