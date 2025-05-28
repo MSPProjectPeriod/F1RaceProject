@@ -48,24 +48,27 @@ weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', inde
 print("All session data exported to CSV!")
 '''
 
+def get_pit_time_of_driver(session_driver):
+    pit_time = pd.Series(dtype='timedelta64[ns]')
+    last_pit_time = pd.to_timedelta(0.0, unit='s')
+    for index, value in session.laps.pick_drivers(session_driver).Time.items():
+        if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.iloc[index]) or index == (len(session.laps.pick_drivers(session_driver).Time)-1):
+            pit_time_element = session.laps.Time.iloc[index] - last_pit_time
+            pit_time = pd.concat([pit_time, pd.Series(pit_time_element)])
+            '''print("Pit time dif: ")
+            print (pit_time_element)
+            print("Time of Pit: ")
+            print(session.laps.Time.iloc[index])
+            print("\n")'''
+            if not index+1 >= len(session.laps.pick_drivers(session_driver).PitInTime):
+                last_pit_time = session.laps.Time.iloc[index+1]
+            continue
+            
+    return pit_time
+
 #time between pitstops called pit
-pit_time = pd.Series([])
-
-last_pit_time = pd.to_timedelta(0.0, unit='s')
-for index, value in session.laps.pick_drivers(session_driver).Time.items():
-    if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.iloc[index]) or index == (len(session.laps.pick_drivers(session_driver).Time)-1):
-        pit_time_element = session.laps.Time.iloc[index] - last_pit_time
-        print("Pit time dif: ")
-        print (pit_time_element)
-        print("Time of Pit: ")
-        print(session.laps.Time.iloc[index])
-        print("Last Pit time: ")
-        print(last_pit_time)
-        print("\n")
-        if not index+1 >= len(session.laps.pick_drivers(session_driver).PitInTime):
-            last_pit_time = session.laps.Time.iloc[index+1]
-        continue
-
+pit_time = get_pit_time_of_driver(session_driver)
+print(pit_time)
 
 '''for index, value in session.laps.PitInTime.items():
     if not pd.isna(value):
