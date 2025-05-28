@@ -108,7 +108,7 @@ print("Time per laps per pit (using dictionary for pit): ")
 print(time_per_lap_per_pit_time_per_pit)
 print("\n")
 
-
+#getting the difference in time compared to baseline speed (second lap after pit stop)
 extra_time_per_lap_per_pit_time_per_pit = get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pit)
 print("Extra time per laps per pit (using dictionary for pit): ")
 print(extra_time_per_lap_per_pit_time_per_pit)
