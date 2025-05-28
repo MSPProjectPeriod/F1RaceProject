@@ -85,17 +85,16 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
             pit_index += 1
         
     return time_per_lap_per_pit_time_per_pit
+
 #time between pitstops called pit
 pit_time = get_pit_time_of_driver(session_driver)
 print("Pit times: ")
 print(pit_time)
+print("\n")
 
+#get time for each lap in a pit 
 time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, session_driver)
-print("Time per laps per pit: ")
+print("Time per laps per pit (using dictionary for pit): ")
 print(time_per_lap_per_pit_time_per_pit)
-#print(time_per_lap_per_pit_time_per_pit.iloc[1])
+print("\n")
 
-'''for index, value in session.laps.PitInTime.items():
-    if not pd.isna(value):
-        print(f"Index : {index}, Value : {value}")
-'''
