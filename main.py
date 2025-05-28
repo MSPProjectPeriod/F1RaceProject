@@ -3,6 +3,8 @@ import fastf1
 import numpy as np
 import pandas as pd
 import os
+import scipy
+import matplotlib.pyplot as plt
 
 ### LOADING & SAVING SESSION DATA TO CVS
 csv_location = 'csv_files/'
@@ -94,6 +96,21 @@ def get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pi
         extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"] = (time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].subtract(time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].iloc[1])).dt.total_seconds()
     return extra_time_per_lap_per_pit_time_per_pit 
 
+def plot_times(time_per_lap_per_pit_time_per_pit):
+    for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
+        data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
+
+        print(f"pit_{pit} index:\n", data.index)
+        print(f"pit_{pit} values:\n", data.values)
+
+        # Plot using a point plot (scatter style)
+        plt.plot(range(len(data)), data.values, 'o')  # 'o' for point markers
+        plt.title('Point Plot of Time')
+        plt.xlabel('Index')
+        plt.ylabel('Value')
+        plt.grid(True)
+        plt.show()
+
 ###main sequence
 
 #getting pit_time
@@ -113,3 +130,5 @@ extra_time_per_lap_per_pit_time_per_pit = get_extra_time_per_lap_per_pit_time_pe
 print("Extra time per laps per pit (using dictionary for pit): ")
 print(extra_time_per_lap_per_pit_time_per_pit)
 print("\n")
+
+plot_times(time_per_lap_per_pit_time_per_pit)
