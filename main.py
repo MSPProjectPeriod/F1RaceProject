@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 ### LOADING & SAVING SESSION DATA TO CVS
 csv_location = 'csv_files/'
+os.makedirs(csv_location, exist_ok=True)
 
 # Enable a cache directory (will be created if it doesn't exist)
 cache_dir = './fastf1cache'
