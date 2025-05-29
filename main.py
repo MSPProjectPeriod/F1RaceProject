@@ -107,7 +107,7 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
     height = 6
     plt.figure(figsize=(width, height))
 
-    lap_offset = 0
+    lap_offset = 1
 
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
@@ -115,8 +115,8 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
         index = range(lap_offset,len(data)+lap_offset)
         values = data.values
 
-         # Compute linear trend line using pandas (via numpy)
-        coeffs = np.polyfit(index,values, 1)
+        # Compute linear trend line ignoring the first data point due to starting lap time delay
+        coeffs = np.polyfit(index[1:], values[1:], 1)
         trend = np.poly1d(coeffs)(index)
 
         # Compute residuals and standard error
