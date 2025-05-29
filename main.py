@@ -8,6 +8,11 @@ import matplotlib.pyplot as plt
 ### LOADING & SAVING SESSION DATA TO CVS
 csv_location = 'csv_files/'
 
+# Enable a cache directory (will be created if it doesn't exist)
+cache_dir = './fastf1cache'
+os.makedirs(cache_dir, exist_ok=True)
+fastf1.Cache.enable_cache(cache_dir)
+
 #session details using a dictionary
 sessions = {
     "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC']],
@@ -28,11 +33,6 @@ if driver_selection <= len(sessions.get(session_selection)[3]) and driver_select
 else:
     print("Driver is not available for this session. \n")
     exit(1)
-
-# Enable a cache directory (will be created if it doesn't exist)
-cache_dir = './fastf1cache'
-os.makedirs(cache_dir, exist_ok=True)
-fastf1.Cache.enable_cache(cache_dir)
 
 # Load the session with everything
 try:
