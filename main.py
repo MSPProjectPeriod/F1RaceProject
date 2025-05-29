@@ -53,14 +53,14 @@ print("All session data exported to CSV!")
 '''
 
 #functions
-
+#work on this tomorrow
 def get_pit_time_of_driver(session_driver):
     pit_time = pd.Series(dtype='timedelta64[ns]')
     last_pit_time = pd.to_timedelta(0.0, unit='s')
     for index, value in session.laps.pick_drivers(session_driver).Time.items():
-        if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.iloc[index]) or index == (len(session.laps.pick_drivers(session_driver).Time)-1):
+        if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(session_driver).index[-1]:
             #pit_time_element = session.laps.Time.iloc[index] - last_pit_time
-            pit_time_element = session.laps.Time.iloc[index] #trying to get times when pits happen
+            pit_time_element = session.laps.Time.loc[index] #trying to get times when pits happen
             pit_time = pd.concat([pit_time, pd.Series(pit_time_element)])
             '''print("Pit time dif: ")
             print (pit_time_element)
@@ -68,7 +68,7 @@ def get_pit_time_of_driver(session_driver):
             print(session.laps.Time.iloc[index])
             print("\n")'''
             if not index+1 >= len(session.laps.pick_drivers(session_driver).PitInTime):
-                last_pit_time = session.laps.Time.iloc[index+1]
+                last_pit_time = session.laps.Time.loc[index+1]
             continue
             
     return pit_time
@@ -79,10 +79,10 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
     pit_index = 0
     for index, value in session.laps.pick_drivers(session_driver).Time.items():
         if not value in pit_time.values:
-            time_per_lap = pd.to_timedelta(session.laps.pick_drivers(session_driver).iloc[index].LapTime)
+            time_per_lap = pd.to_timedelta(session.laps.pick_drivers(session_driver).loc[index].LapTime)
             time_per_lap_per_pit_time = pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])])
         else:
-            time_per_lap = pd.to_timedelta(session.laps.pick_drivers(session_driver).iloc[index].LapTime)
+            time_per_lap = pd.to_timedelta(session.laps.pick_drivers(session_driver).loc[index].LapTime)
             time_per_lap_per_pit_time = (pd.concat([time_per_lap_per_pit_time, pd.Series([time_per_lap])]))
             time_per_lap_per_pit_time_per_pit[f"pit_{pit_index}"] = time_per_lap_per_pit_time.dt.total_seconds()
             time_per_lap_per_pit_time = pd.Series(dtype='timedelta64[ns]')
