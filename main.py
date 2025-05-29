@@ -16,8 +16,8 @@ fastf1.Cache.enable_cache(cache_dir)
 
 #session details using a dictionary
 sessions = {
-    "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC']],
-    "1": [2024, 'Monaco Grand Prix', 'R', ['PER', 'HAM', 'SAI']]
+    "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC', 'PIA', 'SAI', 'HAM', 'RUS', 'PER', 'STR', 'TSU', 'HUL', 'MAG', 'RIC', 'OCO', 'ZHO', 'GAS', 'SAR', 'BOT', 'ALO', 'ALB']],
+    "1": [2024, 'Monaco Grand Prix', 'R', ['LEC', 'PIA', 'SAI', 'NOR', 'RUS', 'VER', 'HAM', 'TSU', 'ALB', 'GAS', 'ALO', 'RIC', 'BOT', 'STR', 'SAR', 'ZHO']]
 }
 
 print("These are the available sessions: \n", sessions['0'],"\n", sessions['1'])
@@ -27,9 +27,11 @@ session_event = sessions.get(session_selection)[1]
 session_type = sessions.get(session_selection)[2]
 session_name = session_event+'_'+str(session_year)+'_'+session_type
 
-driver_selection = int(input("Which driver would you like to analyse? (example: 0 for first driver)\n"))
-if driver_selection <= len(sessions.get(session_selection)[3]) and driver_selection >= 0:
-    session_driver = sessions.get(session_selection)[3][driver_selection]
+driver_selection = input("Which driver would you like to analyse? (example: 0 for first driver or VER)\n")
+if driver_selection in sessions.get(session_selection)[3]:
+    session_driver = driver_selection
+elif int(driver_selection) <= len(sessions.get(session_selection)[3]) and int(driver_selection) >= 0:
+    session_driver = sessions.get(session_selection)[3][int(driver_selection)]
     print("Picking driver: ", session_driver, "\n")
 else:
     print("Driver is not available for this session. \n")
