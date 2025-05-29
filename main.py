@@ -101,25 +101,7 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
             continue
     return time_per_lap_per_pit_time_per_pit
 
-def get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pit):
-    extra_time_per_lap_per_pit_time_per_pit = {}
-    for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
-        #we want to get extra time from 2nd lap after pitstop therefore [1] since we start at 0 #time measured in seconds
-        extra_time_per_lap_per_pit_time_per_pit[f"pit_{pit}"] = (time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].subtract(time_per_lap_per_pit_time_per_pit[f"pit_{pit}"].iloc[1]))
-    return extra_time_per_lap_per_pit_time_per_pit 
-
-def plot_times(time_per_lap_per_pit_time_per_pit, extra_time_per_lap_per_pit_time_per_pit):
-    '''for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
-        data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
-
-        # Plot using a point plot (scatter style)
-        plt.plot(range(len(data)), data.values, 'o')  # 'o' for point markers
-        plt.title(f'Point Plot of Lap Times of pit_{pit}')
-        plt.xlabel('Index')
-        plt.ylabel('Value')
-        plt.grid(True)
-        plt.show()'''
-
+def plot_times(time_per_lap_per_pit_time_per_pit):
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
         #removing first and last lap due to inconsistencies from starting/pitstopping
@@ -140,7 +122,7 @@ def plot_times(time_per_lap_per_pit_time_per_pit, extra_time_per_lap_per_pit_tim
         # Plot using a point plot (scatter style)
         plt.plot(index,values, 'o')  # 'o' for point markers
         plt.plot(index, trend, '-', label='Trend Line')    # Trend line
-        plt.title(f'Point Plot of Extra- Lap Times of pit_{pit}')
+        plt.title(f'Point Plot of Lap Times of pit_{pit}')
         plt.xlabel('Laps of '+ session_driver + ' in ' + session_name)
         plt.ylabel('Lap Times')
         plt.grid(True)
@@ -162,10 +144,4 @@ print("Time per laps per pit (using dictionary for pit): ")
 print(time_per_lap_per_pit_time_per_pit)
 print("\n")
 
-#getting the difference in time compared to baseline speed (second lap after pit stop)
-extra_time_per_lap_per_pit_time_per_pit = get_extra_time_per_lap_per_pit_time_per_pit(time_per_lap_per_pit_time_per_pit)
-print("Extra time per laps per pit (using dictionary for pit): ")
-print(extra_time_per_lap_per_pit_time_per_pit)
-print("\n")
-
-plot_times(time_per_lap_per_pit_time_per_pit,extra_time_per_lap_per_pit_time_per_pit)
+plot_times(time_per_lap_per_pit_time_per_pit)
