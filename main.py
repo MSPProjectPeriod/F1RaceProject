@@ -112,8 +112,8 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
 
-        index = range(1+ lap_offset,len(data)-1+ lap_offset)
-        values = data.values[1:(len(data)-1)]
+        index = range(lap_offset,len(data)+lap_offset)
+        values = data.values
 
          # Compute linear trend line using pandas (via numpy)
         coeffs = np.polyfit(index,values, 1)
@@ -123,19 +123,19 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
         residuals = values - trend
         std_err = np.std(residuals)
 
-         # Plot uncertainty band (±1 std deviation)
+        # Plot using a point plot (scatter style)
+        plt.plot(index, values, 'o-', label=f'Pit_{pit} Lap Times')  # 'o' for point markers
+        plt.plot(index, trend, '-', label=f'Pit_{pit} Trend Line (slope = {coeffs[0]:.4f})')    # Trend line
+        # Plot uncertainty band (±1 std deviation)
         plt.fill_between(index, trend - std_err, trend + std_err, alpha=0.3, label=f'Pit_{pit} ±1 Std Error')
 
-        # Plot using a point plot (scatter style)
-
-        plt.plot(index, values, 'o')  # 'o' for point markers
-        plt.plot(index, trend, '-', label=f'Pit_{pit} Trend Line (slope = {coeffs[0]:.4f})')    # Trend line
-
         # Increment offset for next pit
-        lap_offset += len(values)  # Add 1 to create visual gap
-        
+        lap_offset += len(data)  # Add 1 to create visual gap:
+
     plt.title(f'Point Plot of Lap Times for each Pit')
     plt.xlabel('Laps of per Pit of '+ session_driver + ' in ' + session_name)
+    print(lap_offset)
+    plt.xticks(np.arange(0, lap_offset + 5, 5))
     plt.ylabel('Lap Times per Pit')
     plt.grid(True)
     plt.legend()
