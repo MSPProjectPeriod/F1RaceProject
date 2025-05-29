@@ -1,0 +1,5 @@
+# Ignore specific CSV directory
+csv_files/
+
+# Ignore FastF1 cache directory
+.fastf1cache/
