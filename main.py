@@ -103,6 +103,9 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
     return time_per_lap_per_pit_time_per_pit
 
 def plot_times(time_per_lap_per_pit_time_per_pit):
+    width = 8
+    height = 6
+    plt.figure(figsize=(width, height))
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
         #removing first and last lap due to inconsistencies from starting/pitstopping
@@ -118,17 +121,18 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
         std_err = np.std(residuals)
 
          # Plot uncertainty band (±1 std deviation)
-        plt.fill_between(index, trend - std_err, trend + std_err, alpha=0.3, label='±1 Std Error')
+        plt.fill_between(index, trend - std_err, trend + std_err, alpha=0.3, label=f'Pit_{pit} ±1 Std Error')
 
         # Plot using a point plot (scatter style)
         plt.plot(index,values, 'o')  # 'o' for point markers
-        plt.plot(index, trend, '-', label=f'Trend Line (slope = {coeffs[0]:.4f})')    # Trend line
-        plt.title(f'Point Plot of Lap Times of pit_{pit}')
-        plt.xlabel('Laps of '+ session_driver + ' in ' + session_name)
-        plt.ylabel('Lap Times')
-        plt.grid(True)
-        plt.legend()
-        plt.show()
+        plt.plot(index, trend, '-', label=f'Pit_{pit} Trend Line (slope = {coeffs[0]:.4f})')    # Trend line
+        
+    plt.title(f'Point Plot of Lap Times for each Pit')
+    plt.xlabel('Laps of per Pit of '+ session_driver + ' in ' + session_name)
+    plt.ylabel('Lap Times per Pit')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
 
 
 
