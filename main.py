@@ -45,7 +45,6 @@ except Exception as e:
 print("Succesfully loaded session! \n")
 
 
-# Export laps
 #removing unnecessary files
 for csv_file in os.listdir(csv_location):
     if csv_file != (session_name+'_laps.csv') and csv_file != (session_name+'_'+session_driver+'_posdata.csv') and csv_file != (session_name+'_'+session_driver+'_telemetry.csv') and csv_file != (session_name+'_'+session_driver+'_weather.csv'):
@@ -67,6 +66,7 @@ pos_data.to_csv(csv_location+session_name+'_'+session_driver+'_posdata.csv', ind
 weather = session.laps.pick_drivers(session_driver).get_weather_data()               # WeatherData object as DataFrame  [oai_citation:2‡Welcome to python-forum.io](https://python-forum.io/thread-40191.html?utm_source=chatgpt.com)
 weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', index=False)
 
+#done to check data first hand
 print("All session data exported to CSV!")
 
 
@@ -121,16 +121,17 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
 
         # Plot using a point plot (scatter style)
         plt.plot(index,values, 'o')  # 'o' for point markers
-        plt.plot(index, trend, '-', label='Trend Line')    # Trend line
+        plt.plot(index, trend, '-', label=f'Trend Line (slope = {coeffs[0]:.4f})')    # Trend line
         plt.title(f'Point Plot of Lap Times of pit_{pit}')
         plt.xlabel('Laps of '+ session_driver + ' in ' + session_name)
         plt.ylabel('Lap Times')
         plt.grid(True)
+        plt.legend()
         plt.show()
 
 
 
-###main sequence
+### MAIN SEQUENCE
 
 #getting pit_time
 pit_time = get_pit_time_of_driver(session_driver)
