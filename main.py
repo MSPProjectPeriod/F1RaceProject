@@ -170,19 +170,26 @@ def plot_times(performance):
 
 def plot_lines(performance):
 
-    # Create x values
-    
-    x = np.linspace(1, int(performance.pit_intervals.iloc[-1]), int(performance.pit_intervals.iloc[-1]))
+    #plot dimensions
+    width = 8
+    height = 6
+    plt.figure(figsize=(width, height))
+
     #dictionary of lines
     lines = {}
+    lap_offset = 0
 
-    for pit, results in list(performance.results.items())[:-1]:
+    for pit, results in list(performance.results.items()):
 
         slope, intercept = np.polyfit(np.arange(len(results["trends"])), results["trends"], 1)
-        lines[pit] = slope * (x)
+
+        x = np.linspace(1+lap_offset, int(performance.pit_intervals.iloc[int(pit.split('_')[1])]), int(performance.pit_intervals.iloc[int(pit.split('_')[1])]))
+        lines[pit] = slope * x
+
+        lap_offset += int(performance.pit_intervals.iloc[int(pit.split('_')[1])])
 
         # Plot the lines
-        plt.plot(x, lines[pit], label=pit)
+        plt.plot(x, lines[pit], label=pit+' Trend Line: '+ str(slope))
 
 
     # Add labels and title
