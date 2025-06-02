@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import threading
+import time
 
 ### LOADING & SAVING SESSION DATA TO CVS
 csv_location = 'csv_files/'
@@ -104,7 +106,15 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
             continue
     return time_per_lap_per_pit_time_per_pit
 
+#function to show plots for limited time
+def plt_show_sec(duration):
+    plt.show(block=False)
+    plt.pause(duration)
+    plt.close()
+
 def plot_times(time_per_lap_per_pit_time_per_pit):
+
+    #plot dimensions
     width = 8
     height = 6
     plt.figure(figsize=(width, height))
@@ -135,13 +145,12 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
         lap_offset += len(data)  # Add 1 to create visual gap:
 
     plt.title(f'Point Plot of Lap Times for each Pit')
-    plt.xlabel('Laps of per Pit of '+ session_driver + ' in ' + session_name)
-    print(lap_offset)
-    plt.xticks(np.arange(0, lap_offset + 5, 5))
-    plt.ylabel('Lap Times per Pit')
+    plt.xlabel('Laps per Pit of '+ session_driver + ' in ' + session_name)
+    plt.xticks(np.arange(0, lap_offset + 5, 5)) #show every 5 lap on x axis
+    plt.ylabel('Lap Times per Pit (first and last lap per pit ignored for trend)')
     plt.grid(True)
     plt.legend()
-    plt.show()
+    plt_show_sec(1.0)
 
 
 
@@ -160,3 +169,5 @@ print(time_per_lap_per_pit_time_per_pit)
 print("\n")
 
 plot_times(time_per_lap_per_pit_time_per_pit)
+plt.close()
+
