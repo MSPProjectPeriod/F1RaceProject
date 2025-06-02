@@ -9,8 +9,8 @@ import time
 
 ### OBJECTS
 
-class Driver_Performance:
-    def __init__(self, driver=str, pit_intervals=pd.Series(dtype=int), pit_results=None, original_time=None):
+class driver_Performance:
+    def __init__(self, driver=str, pit_intervals=pd.Series(dtype=int), pit_results=None, original_time=None, lap_count=None):
         self.driver = driver
         self.pit_intervals = pit_intervals #interval in laps
         self.pit_results = pit_results
@@ -128,13 +128,12 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
 
     return results
 
-
 def plt_show_sec(duration):
     plt.show(block=False)
     plt.pause(duration)
     plt.close()
 
-def plot_times(Performance):
+def plot_times(performance):
 
     #plot dimensions
     width = 8
@@ -145,12 +144,12 @@ def plot_times(Performance):
 
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
 
-        index = Performance.results[f"pit_{pit}"]["index"]
-        values = Performance.results[f"pit_{pit}"]["values"]
-        trends = Performance.results[f"pit_{pit}"]["trends"]
-        coeffs = Performance.results[f"pit_{pit}"]["coeffs"]
-        std_err = Performance.results[f"pit_{pit}"]["std_err"]
-        residuals = Performance.results[f"pit_{pit}"]["residuals"]
+        index = performance.results[f"pit_{pit}"]["index"]
+        values = performance.results[f"pit_{pit}"]["values"]
+        trends = performance.results[f"pit_{pit}"]["trends"]
+        coeffs = performance.results[f"pit_{pit}"]["coeffs"]
+        std_err = performance.results[f"pit_{pit}"]["std_err"]
+        residuals = performance.results[f"pit_{pit}"]["residuals"]
 
         # Plot using a point plot (scatter style)
         plt.plot(np.array(index) + lap_offset, values, 'o-', label=f'Pit_{pit} Lap Times')  # 'o' for point markers
@@ -162,13 +161,40 @@ def plot_times(Performance):
         lap_offset += len(values)  # Add 1 to create visual gap:
 
     plt.title(f'Point Plot of Lap Times for each Pit')
-    plt.xlabel('Laps per Pit of '+ Performance.driver + ' in ' + session_name)
+    plt.xlabel('Laps per Pit of '+ performance.driver + ' in ' + session_name)
     plt.xticks(np.arange(0, lap_offset + 5, 5)) #show every 5 lap on x axis
     plt.ylabel('Lap Times per Pit (first and last lap per pit ignored for trend)')
     plt.grid(True)
     plt.legend()
-    plt_show_sec(3.0)
+    plt_show_sec(1.0)
 
+def plot_lines(performance):
+
+    # Create x values
+    
+    x = np.linspace(1, int(performance.pit_intervals.iloc[-1]), int(performance.pit_intervals.iloc[-1]))
+    #dictionary of lines
+    lines = {}
+
+    for pit, results in list(performance.results.items())[:-1]:
+
+        slope, intercept = np.polyfit(np.arange(len(results["trends"])), results["trends"], 1)
+        lines[pit] = slope * (x)
+
+        # Plot the lines
+        plt.plot(x, lines[pit], label=pit)
+
+
+    # Add labels and title
+    plt.xlabel('x')
+    #plt.xticks(np.arange(1, int(performance.pit_intervals.iloc[-1], 5))) #show every 5 lap on x axis
+    plt.ylabel('y')
+    plt.title('Linear Functions')
+    plt.legend()
+    plt.grid(True)
+
+    # Show plot
+    plt_show_sec(100)
 
 ### LOADING AND SELECTING SESSION DATA
 csv_location = 'csv_files/'
@@ -236,33 +262,38 @@ elif csv_file_bool in ['N', 'NO']:
 
 ### ANALYSIS
 
-Driver_Performances = pd.Series(dtype=object)
+driver_performances = pd.Series(dtype=object)
 
+#Create Objects with all required information
 for driver in session_drivers:
 
-    Performance = Driver_Performance(driver)
+    performance = driver_Performance(driver)
 
     #getting pit_time
     pit_time, pit_laps = get_pit_time_of_driver(driver)
-    print("Pit times: ", pit_time, "\n")
+    """print("Pit times: ", pit_time, "\n")
     print("Pit laps: ", pit_laps, "\n")
-    print("\n")
+    print("\n")"""
 
-    Performance.pit_intervals = pit_laps
+    performance.pit_intervals = pit_laps
+    print(pit_time)
+    performance.original_time = pit_time.iloc[-1]
     
     #getting time for each lap in a pit 
     time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, driver)
-    print("Time per laps per pit (using dictionary for pit): ")
+    """print("Time per laps per pit (using dictionary for pit): ")
     print(time_per_lap_per_pit_time_per_pit)
-    print("\n")
+    print("\n")"""
 
-    Performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
+    performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
 
-    plot_times(Performance)
-
-
+    plot_times(performance)
 
     #add to series of objects
-    pd.concat([Driver_Performances, pd.Series([Performance])])
+    driver_performances = pd.concat([pd.Series([performance])])
 
 
+# Use Objects to do some analysis
+for performance in driver_performances:
+
+    plot_lines(performance)
