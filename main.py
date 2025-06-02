@@ -18,18 +18,21 @@ fastf1.Cache.enable_cache(cache_dir)
 
 #session details using a dictionary
 sessions = {
-    "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC', 'PIA', 'SAI', 'HAM', 'RUS', 'PER', 'STR', 'TSU', 'HUL', 'MAG', 'RIC', 'OCO', 'ZHO', 'GAS', 'SAR', 'BOT', 'ALO', 'ALB']],
+    "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC', 'PIA', 'SAI', 'HAM', 'RUS', 'PER', 'STR', 'TSU', 'HUL', 'MAG', 'RIC', 'OCO', 'ZHO', 'GAS', 'SAR', 'BOT', 'ALO']], #ALB was excluded due to car faults and Penalty
     "1": [2024, 'Monaco Grand Prix', 'R', ['LEC', 'PIA', 'SAI', 'NOR', 'RUS', 'VER', 'HAM', 'TSU', 'ALB', 'GAS', 'ALO', 'RIC', 'BOT', 'STR', 'SAR', 'ZHO']]
 }
 
 #session-selection
 print("These are the available sessions: \n", sessions['0'],"\n", sessions['1'])
 session_selection = input("Enter which session you would like to analyse:  (example: 0, 1, ..)\n")
-session_year = sessions.get(session_selection)[0]
-session_event = sessions.get(session_selection)[1]
-session_type = sessions.get(session_selection)[2]
-session_name = session_event+'_'+str(session_year)+'_'+session_type
-
+if session_selection.isnumeric() and int(session_selection) >= 0 and int(session_selection) <= len(sessions):
+    session_year = sessions.get(session_selection)[0]
+    session_event = sessions.get(session_selection)[1]
+    session_type = sessions.get(session_selection)[2]
+    session_name = session_event+'_'+str(session_year)+'_'+session_type
+else:
+    print("The session you selected is unavailable. Exiting program.")
+    exit(1)
 
 #Load the session with everything
 try:
@@ -47,30 +50,38 @@ if driver_selection in sessions.get(session_selection)[3]:
 elif driver_selection == 'ALL':
     session_drivers = sessions.get(session_selection)[3]
 elif int(driver_selection) <= len(sessions.get(session_selection)[3]) and int(driver_selection) >= 0:
-    session_drivers = input("Which drivers would you like to analyse specifically? (example: VER, NOR)").split(",")
-    for driver in len(session_drivers):
-        if not session_drivers[driver] in sessions.get(session_selection)[3]:
-            print("Driver ", session_drivers[driver], " not found in selected session. Will be skipped over.")
-            session_drivers.remove(session_drivers[driver])
+    session_drivers = input("Which drivers would you like to analyse specifically? (example: VER, NOR)\n").replace(" ", "").split(",")
+    print(session_drivers)
+    for driver in session_drivers:
+        if not driver in sessions.get(session_selection)[3]:
+            print("Driver ", driver , " not found in selected session. Will be skipped over.")
+            session_drivers.remove(driver)
     print("Picking drivers: ", session_drivers, "\n")
 else:
     print("Driver is not available for this session. \n")
     exit(1)
 
 
-
-
-
 #### Functions
 
 def csv_file_manager(session_drivers):
     print(session_drivers)
-    #removing unnecessary files
+
+    # Build a set of all valid filenames
+    valid_files = {session_name + '_laps.csv'}
+    for driver in session_drivers:
+        valid_files.update({
+            f"{session_name}_{driver}_posdata.csv",
+            f"{session_name}_{driver}_telemetry.csv",
+            f"{session_name}_{driver}_weather.csv"
+        })
+
+    # Loop once through all files and delete the unnecessary ones
     for csv_file in os.listdir(csv_location):
-        for driver in session_drivers: 
-            print(driver)
-            if csv_file != (session_name+'_laps.csv') and csv_file != (session_name+'_'+ driver +'_posdata.csv') and csv_file != (session_name+'_'+ driver +'_telemetry.csv') and csv_file != (session_name+'_'+ driver +'_weather.csv') and os.path.isfile(csv_location+csv_file):
-                os.remove(csv_location+csv_file)
+        full_path = os.path.join(csv_location, csv_file)
+        if csv_file not in valid_files and os.path.isfile(full_path):
+            os.remove(full_path)
+
     print("Removed all prior csv_files that were unnecessary. \n")
 
     #data of the entire session
@@ -124,13 +135,12 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
             continue
     return time_per_lap_per_pit_time_per_pit
 
-#function to show plots for limited time
 def plt_show_sec(duration):
     plt.show(block=False)
     plt.pause(duration)
     plt.close()
 
-def plot_times(time_per_lap_per_pit_time_per_pit):
+def plot_times(time_per_lap_per_pit_time_per_pit,session_driver):
 
     #plot dimensions
     width = 8
@@ -150,7 +160,7 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
         trend = np.poly1d(coeffs)(index)
 
         # Compute residuals and standard error
-        residuals = values - trend
+        residuals = values[1:-1] - trend[1:-1]
         std_err = np.std(residuals)
 
         # Plot using a point plot (scatter style)
@@ -177,18 +187,19 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
 #csv manager
 csv_file_manager(session_drivers)
 
-#getting pit_time
-pit_time = get_pit_time_of_driver(session_driver)
-print("Pit times: ")
-print(pit_time)
-print("\n")
+for driver in session_drivers:
+    #getting pit_time
+    pit_time = get_pit_time_of_driver(driver)
+    print("Pit times: ")
+    print(pit_time)
+    print("\n")
 
-#getting time for each lap in a pit 
-time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, session_driver)
-print("Time per laps per pit (using dictionary for pit): ")
-print(time_per_lap_per_pit_time_per_pit)
-print("\n")
+    #getting time for each lap in a pit 
+    time_per_lap_per_pit_time_per_pit = get_lap_time_per_pit_time_of_driver(pit_time, driver)
+    print("Time per laps per pit (using dictionary for pit): ")
+    print(time_per_lap_per_pit_time_per_pit)
+    print("\n")
 
-plot_times(time_per_lap_per_pit_time_per_pit)
-plt.close()
+    plot_times(time_per_lap_per_pit_time_per_pit, driver)
+
 
