@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import threading
 import time
 
-### LOADING & SAVING SESSION DATA TO CVS
+### LOADING AND SELECTING SESSION DATA
 csv_location = 'csv_files/'
 os.makedirs(csv_location, exist_ok=True)
 
@@ -22,6 +22,7 @@ sessions = {
     "1": [2024, 'Monaco Grand Prix', 'R', ['LEC', 'PIA', 'SAI', 'NOR', 'RUS', 'VER', 'HAM', 'TSU', 'ALB', 'GAS', 'ALO', 'RIC', 'BOT', 'STR', 'SAR', 'ZHO']]
 }
 
+#session-selection
 print("These are the available sessions: \n", sessions['0'],"\n", sessions['1'])
 session_selection = input("Enter which session you would like to analyse:  (example: 0, 1, ..)\n")
 session_year = sessions.get(session_selection)[0]
@@ -29,54 +30,71 @@ session_event = sessions.get(session_selection)[1]
 session_type = sessions.get(session_selection)[2]
 session_name = session_event+'_'+str(session_year)+'_'+session_type
 
-driver_selection = input("Which driver would you like to analyse? (example: 0 for first driver or VER)\n")
-if driver_selection in sessions.get(session_selection)[3]:
-    session_driver = driver_selection
-elif int(driver_selection) <= len(sessions.get(session_selection)[3]) and int(driver_selection) >= 0:
-    session_driver = sessions.get(session_selection)[3][int(driver_selection)]
-    print("Picking driver: ", session_driver, "\n")
-else:
-    print("Driver is not available for this session. \n")
-    exit(1)
 
-# Load the session with everything
+#Load the session with everything
 try:
     session = fastf1.get_session(session_year, session_event, session_type)
     session.load(telemetry=True, laps=True, weather=True)
 except Exception as e:
     print(f"Failed to load session: {e}")
     exit(1)
-
 print("Succesfully loaded session! \n")
 
 
-#removing unnecessary files
-for csv_file in os.listdir(csv_location):
-    if csv_file != (session_name+'_laps.csv') and csv_file != (session_name+'_'+session_driver+'_posdata.csv') and csv_file != (session_name+'_'+session_driver+'_telemetry.csv') and csv_file != (session_name+'_'+session_driver+'_weather.csv'):
-        os.remove(csv_location+csv_file)
-print("Removed all prior csv_files that were unnecessary. \n")
-
-session.laps.to_csv(csv_location+session_name+'_laps.csv', index=False)
-
-# Export per-lap telemetry
-# (per-lap telemetry is available via Lap.get_car_data())
-telemetry_dfs = session.laps.pick_drivers(session_driver).get_telemetry()
-telemetry_dfs.to_csv(csv_location+session_name+'_'+session_driver+'_telemetry.csv', index=False)
-
-# Export positional data
-pos_data = session.laps.pick_drivers(session_driver).get_pos_data()                  # DataFrame of car position on track  [oai_citation:1‡Welcome to python-forum.io](https://python-forum.io/thread-40191.html?utm_source=chatgpt.com)
-pos_data.to_csv(csv_location+session_name+'_'+session_driver+'_posdata.csv', index=False)
-
-# Export weather data
-weather = session.laps.pick_drivers(session_driver).get_weather_data()               # WeatherData object as DataFrame  [oai_citation:2‡Welcome to python-forum.io](https://python-forum.io/thread-40191.html?utm_source=chatgpt.com)
-weather.to_csv(csv_location+session_name+'_'+session_driver+'_weather.csv', index=False)
-
-#done to check data first hand
-print("All session data exported to CSV!")
+driver_selection = input("How many drivers would you like to analyse? (example: VER for just Verstappen, ALL, 2 for two drivers)\n").upper()
+if driver_selection in sessions.get(session_selection)[3]:
+    session_drivers = [driver_selection]
+elif driver_selection == 'ALL':
+    session_drivers = sessions.get(session_selection)[3]
+elif int(driver_selection) <= len(sessions.get(session_selection)[3]) and int(driver_selection) >= 0:
+    session_drivers = input("Which drivers would you like to analyse specifically? (example: VER, NOR)").split(",")
+    for driver in len(session_drivers):
+        if not session_drivers[driver] in sessions.get(session_selection)[3]:
+            print("Driver ", session_drivers[driver], " not found in selected session. Will be skipped over.")
+            session_drivers.remove(session_drivers[driver])
+    print("Picking drivers: ", session_drivers, "\n")
+else:
+    print("Driver is not available for this session. \n")
+    exit(1)
 
 
-#functions
-#work on this tomorrow
+
+
+
+#### Functions
+
+def csv_file_manager(session_drivers):
+    print(session_drivers)
+    #removing unnecessary files
+    for csv_file in os.listdir(csv_location):
+        for driver in session_drivers: 
+            print(driver)
+            if csv_file != (session_name+'_laps.csv') and csv_file != (session_name+'_'+ driver +'_posdata.csv') and csv_file != (session_name+'_'+ driver +'_telemetry.csv') and csv_file != (session_name+'_'+ driver +'_weather.csv') and os.path.isfile(csv_location+csv_file):
+                os.remove(csv_location+csv_file)
+    print("Removed all prior csv_files that were unnecessary. \n")
+
+    #data of the entire session
+    session.laps.to_csv(csv_location+session_name+'_laps.csv', index=False)
+
+    #data for each driver
+
+    for driver in session_drivers:
+        # Export per-lap telemetry
+        # (per-lap telemetry is available via Lap.get_car_data())
+        telemetry_dfs = session.laps.pick_drivers(driver).get_telemetry()
+        telemetry_dfs.to_csv(csv_location+session_name+'_'+driver+'_telemetry.csv', index=False)
+
+        # Export positional data
+        pos_data = session.laps.pick_drivers(driver).get_pos_data()                 
+        pos_data.to_csv(csv_location+session_name+'_'+driver+'_posdata.csv', index=False)
+
+        # Export weather data
+        weather = session.laps.pick_drivers(driver).get_weather_data()             
+        weather.to_csv(csv_location+session_name+'_'+driver+'_weather.csv', index=False)
+
+    #done to check data first hand
+    print("All session data exported to CSV!")
+
 def get_pit_time_of_driver(session_driver):
     pit_time = pd.Series(dtype='timedelta64[ns]')
     for index, value in list(session.laps.pick_drivers(session_driver).Time.items())[1:]:
@@ -155,6 +173,9 @@ def plot_times(time_per_lap_per_pit_time_per_pit):
 
 
 ### MAIN SEQUENCE
+
+#csv manager
+csv_file_manager(session_drivers)
 
 #getting pit_time
 pit_time = get_pit_time_of_driver(session_driver)
