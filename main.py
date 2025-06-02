@@ -7,62 +7,16 @@ import matplotlib.pyplot as plt
 import threading
 import time
 
-### LOADING AND SELECTING SESSION DATA
-csv_location = 'csv_files/'
-os.makedirs(csv_location, exist_ok=True)
+### OBJECTS
 
-# Enable a cache directory (will be created if it doesn't exist)
-cache_dir = './fastf1cache'
-os.makedirs(cache_dir, exist_ok=True)
-fastf1.Cache.enable_cache(cache_dir)
+class Driver_Performance:
+    def __init__(self, driver, pit_intervals, pit_trends, original_time):
+        self.driver = driver
+        self.pit_intervals = pit_intervals
+        self.pit_trends = pit_trends
+        self.original_time = original_time
 
-#session details using a dictionary
-sessions = {
-    "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC', 'PIA', 'SAI', 'HAM', 'RUS', 'PER', 'STR', 'TSU', 'HUL', 'MAG', 'RIC', 'OCO', 'ZHO', 'GAS', 'SAR', 'BOT', 'ALO']], #ALB was excluded due to car faults and Penalty
-    "1": [2024, 'Monaco Grand Prix', 'R', ['LEC', 'PIA', 'SAI', 'NOR', 'RUS', 'VER', 'HAM', 'TSU', 'ALB', 'GAS', 'ALO', 'RIC', 'BOT', 'STR', 'SAR', 'ZHO']]
-}
-
-#session-selection
-print("These are the available sessions: \n", sessions['0'],"\n", sessions['1'])
-session_selection = input("Enter which session you would like to analyse:  (example: 0, 1, ..)\n")
-if session_selection.isnumeric() and int(session_selection) >= 0 and int(session_selection) <= len(sessions):
-    session_year = sessions.get(session_selection)[0]
-    session_event = sessions.get(session_selection)[1]
-    session_type = sessions.get(session_selection)[2]
-    session_name = session_event+'_'+str(session_year)+'_'+session_type
-else:
-    print("The session you selected is unavailable. Exiting program.")
-    exit(1)
-
-#Load the session with everything
-try:
-    session = fastf1.get_session(session_year, session_event, session_type)
-    session.load(telemetry=True, laps=True, weather=True)
-except Exception as e:
-    print(f"Failed to load session: {e}")
-    exit(1)
-print("Succesfully loaded session! \n")
-
-
-driver_selection = input("How many drivers would you like to analyse? (example: VER for just Verstappen, ALL, 2 for two drivers)\n").upper()
-if driver_selection in sessions.get(session_selection)[3]:
-    session_drivers = [driver_selection]
-elif driver_selection == 'ALL':
-    session_drivers = sessions.get(session_selection)[3]
-elif int(driver_selection) <= len(sessions.get(session_selection)[3]) and int(driver_selection) >= 0:
-    session_drivers = input("Which drivers would you like to analyse specifically? (example: VER, NOR)\n").replace(" ", "").split(",")
-    print(session_drivers)
-    for driver in session_drivers:
-        if not driver in sessions.get(session_selection)[3]:
-            print("Driver ", driver , " not found in selected session. Will be skipped over.")
-            session_drivers.remove(driver)
-    print("Picking drivers: ", session_drivers, "\n")
-else:
-    print("Driver is not available for this session. \n")
-    exit(1)
-
-
-#### Functions
+### FUNCTIONS
 
 def csv_file_manager(session_drivers):
     print(session_drivers)
@@ -181,11 +135,79 @@ def plot_times(time_per_lap_per_pit_time_per_pit,session_driver):
     plt_show_sec(1.0)
 
 
+### LOADING AND SELECTING SESSION DATA
+csv_location = 'csv_files/'
+os.makedirs(csv_location, exist_ok=True)
+
+# Enable a cache directory (will be created if it doesn't exist)
+cache_dir = './fastf1cache'
+os.makedirs(cache_dir, exist_ok=True)
+fastf1.Cache.enable_cache(cache_dir)
+
+#session details using a dictionary
+sessions = {
+    "0": [2024, 'Emilia Romagna Grand Prix', 'R', ['VER', 'NOR', 'LEC', 'PIA', 'SAI', 'HAM', 'RUS', 'PER', 'STR', 'TSU', 'HUL', 'MAG', 'RIC', 'OCO', 'ZHO', 'GAS', 'SAR', 'BOT', 'ALO']], #ALB was excluded due to car faults and Penalty
+    "1": [2024, 'Monaco Grand Prix', 'R', ['LEC', 'PIA', 'SAI', 'NOR', 'RUS', 'VER', 'HAM', 'TSU', 'ALB', 'GAS', 'ALO', 'RIC', 'BOT', 'STR', 'SAR', 'ZHO']]
+}
+
+#session-selection
+print("These are the available sessions: \n", sessions['0'],"\n", sessions['1'])
+session_selection = input("Enter which session you would like to analyse:  (example: 0, 1, ..)\n")
+if session_selection.isnumeric() and int(session_selection) >= 0 and int(session_selection) <= len(sessions):
+    session_year = sessions.get(session_selection)[0]
+    session_event = sessions.get(session_selection)[1]
+    session_type = sessions.get(session_selection)[2]
+    session_name = session_event+'_'+str(session_year)+'_'+session_type
+else:
+    print("The session you selected is unavailable. Exiting program.")
+    exit(1)
+
+#Load the session with everything
+try:
+    session = fastf1.get_session(session_year, session_event, session_type)
+    session.load(telemetry=True, laps=True, weather=True)
+except Exception as e:
+    print(f"Failed to load session: {e}")
+    exit(1)
+print("Succesfully loaded session! \n")
+
+
+driver_selection = input("How many drivers would you like to analyse? (example: VER for just Verstappen, ALL, 2 for two drivers)\n").upper()
+if driver_selection in sessions.get(session_selection)[3]:
+    session_drivers = [driver_selection]
+elif driver_selection == 'ALL':
+    session_drivers = sessions.get(session_selection)[3]
+elif int(driver_selection) <= len(sessions.get(session_selection)[3]) and int(driver_selection) >= 0:
+    session_drivers = input("Which drivers would you like to analyse specifically? (example: VER, NOR)\n").replace(" ", "").split(",")
+    print(session_drivers)
+    for driver in session_drivers:
+        if not driver in sessions.get(session_selection)[3]:
+            print("Driver ", driver , " not found in selected session. Will be skipped over.\n")
+            session_drivers.remove(driver)
+    print("Picking drivers: ", session_drivers, "\n")
+else:
+    print("Driver is not available for this session. \n")
+    exit(1)
+
+csv_file_bool = input("Do you want to process csv files? n/no y/yes\n").upper()
+if not csv_file_bool in ['N', 'NO', 'Y', 'YES']:
+    print("Invalid answer. Exiting program.")
+    exit(1)
+elif csv_file_bool in ['Y', 'YES']:
+    csv_file_manager(session_drivers)
+elif csv_file_bool in ['N', 'NO']:
+    print("Skipping over csv file processing.\n")
+
+
+
+
+
 
 ### MAIN SEQUENCE
 
 #csv manager
-csv_file_manager(session_drivers)
+
+
 
 for driver in session_drivers:
     #getting pit_time
