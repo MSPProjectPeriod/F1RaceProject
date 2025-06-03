@@ -6,7 +6,7 @@ import numpy as np
 # Constants
 number_of_laps = 50        # Set default number of laps
 average_pit_time = 20.0    # Set default average pit time in seconds
-average_lap_time = 90.0    # Set default average lap time in seconds
+
 
 
 # Symbolic variable
@@ -14,7 +14,7 @@ x = symbols('x')
 
 # Input functions for each stint with defaults
 stint1_expr = input("Enter the function for stint 1 (in terms of x): ") or "2*x + 3"
-stint2_expr = input("Enter the function for stint 2 (in terms of x): ") or "x**2 + 5*x + 10"
+stint2_expr = input("Enter the function for stint 2 (in terms of x): ") or "-0.05*x +10"
 
 # Convert to symbolic expressions
 stint1_func = sympify(stint1_expr)
@@ -29,32 +29,34 @@ def total_race_time(pit_lap_val):
     stint2_area = integrate(stint2_func, (x, pit_lap_val, number_of_laps))
     return float(stint1_area + stint2_area + average_pit_time)
 
-# Recursive narrowing search for optimal pit lap
-def find_optimal_pit(lap_start, lap_end, threshold=1):
-    if lap_end - lap_start <= threshold:
-        print(f"Final choice within threshold: Lap {lap_start}")
-        return lap_start, total_race_time(lap_start)
+# Custom narrowing search for optimal pit lap (refine around best of center ± delta)
+def find_optimal_pit(start_lap, end_lap):
+    center = (start_lap + end_lap) // 2
+    delta = (end_lap - start_lap) // 4
 
-    one_third = round(lap_start + (lap_end - lap_start) / 3)
-    two_third = round(lap_start + 2 * (lap_end - lap_start) / 3)
+    while delta > 0:
+        left = max(start_lap, center - delta)
+        right = min(end_lap, center + delta)
 
-    # Prevent infinite loop by ensuring distinct test points
-    if one_third == two_third or one_third == lap_start or two_third == lap_end:
-        mid = (lap_start + lap_end) // 2
-        print(f"Converging to midpoint: Lap {mid}")
-        return mid, total_race_time(mid)
+        center_time = total_race_time(center)
+        left_time = total_race_time(left)
+        right_time = total_race_time(right)
 
-    time_one_third = total_race_time(one_third)
-    time_two_third = total_race_time(two_third)
+        print(f"Comparing Lap {left} (time: {left_time:.2f}), Lap {center} (time: {center_time:.2f}), Lap {right} (time: {right_time:.2f})")
 
-    print(f"Comparing Lap {one_third} (time: {time_one_third:.2f}) vs Lap {two_third} (time: {time_two_third:.2f})")
+        if center_time <= left_time and center_time <= right_time:
+            print(f"Center lap {center} is optimal in this round.")
+            break
+        elif left_time < right_time:
+            center = left
+        else:
+            center = right
 
-    if time_one_third < time_two_third:
-        print(f"Choosing range: {lap_start} to {two_third}")
-        return find_optimal_pit(lap_start, two_third, threshold)
-    else:
-        print(f"Choosing range: {one_third} to {lap_end}")
-        return find_optimal_pit(one_third, lap_end, threshold)
+        delta = max(1, delta // 2)
+        print(f"Narrowing search to center {center} with delta {delta}")
+
+    print(f"Final choice: Lap {center}")
+    return center, total_race_time(center)
 
 # Find optimal pit lap using narrowing method
 optimal_lap, min_time = find_optimal_pit(2, number_of_laps - 1)
@@ -63,6 +65,7 @@ optimal_lap, min_time = find_optimal_pit(2, number_of_laps - 1)
 pit_laps = list(range(2, number_of_laps))
 total_times = [total_race_time(lap) for lap in pit_laps]
 
+
 # Plotting the total time vs pit lap
 plt.figure(figsize=(10, 6))
 plt.plot(pit_laps, total_times, marker='o', linestyle='-')
@@ -70,6 +73,34 @@ plt.axvline(optimal_lap, color='red', linestyle='--', label=f'Optimal Pit Stop: 
 plt.title('Total Race Time vs Pit Stop Lap')
 plt.xlabel('Pit Stop Lap')
 plt.ylabel('Total Race Time')
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Plotting the stint functions with the optimal pit stop marked
+lap_values = np.linspace(1, number_of_laps, 500)
+stint1_vals = [float(stint1_func.subs(x, val)) if val <= optimal_lap else np.nan for val in lap_values]
+# Adjust stint2_vals to include pit stop time at the start of the pit lap
+# Add the average pit stop time to the lap time at the optimal_lap (the start of the pit lap)
+stint2_vals = []
+for val in lap_values:
+    if val >= optimal_lap:
+        lap_time = float(stint2_func.subs(x, val))
+        # Add pit stop time at the start of the pit lap (i.e., at optimal_lap)
+        if int(round(val)) == optimal_lap:
+            lap_time += average_pit_time
+        stint2_vals.append(lap_time)
+    else:
+        stint2_vals.append(np.nan)
+
+plt.figure(figsize=(10, 6))
+plt.plot(lap_values, stint1_vals, label='Stint 1 Function')
+plt.plot(lap_values, stint2_vals, label='Stint 2 Function')
+plt.axvline(optimal_lap, color='red', linestyle='--', label=f'Pit Stop at Lap {optimal_lap}')
+plt.title('Stint Functions with Optimal Pit Stop')
+plt.xlabel('Lap')
+plt.ylabel('Time per Lap')
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
