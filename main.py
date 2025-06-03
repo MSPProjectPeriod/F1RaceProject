@@ -194,7 +194,7 @@ def plot_times(performance):
     plt.ylabel('Lap Times per Pit (first and last lap per pit ignored for trend)')
     plt.grid(True)
     plt.legend()
-    plt_show_sec(1.0)
+    plt_show_sec(30.0)
 
 def optimize_pit(performance):
     # Constants
@@ -252,12 +252,12 @@ def optimize_pit(performance):
         plt.axvline(avg_lap, color='red', linestyle='--',
                     label=f'Optimal Pit(s): {best_combination}')
     plt.title('Total Race Time vs Pit Strategy')
-    plt.xlabel('Average Pit Stop Lap')
+    plt.xlabel('Pit stop lap of '+ performance.driver + ' in ' + session_name)
     plt.ylabel('Total Race Time (s)')
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
-    plt_show_sec(3)
+    plt_show_sec(30)
 
 
 ### LOADING AND SELECTING SESSION DATA
@@ -353,7 +353,7 @@ for driver in session_drivers:
 
     performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
 
-    #plot_times(performance)
+    plot_times(performance)
 
     #add to series of objects
     driver_performances = pd.concat([pd.Series([performance])])
