@@ -123,7 +123,6 @@ def get_pit_avr_stoptime(session_driver):
 
     return pit_avr_stoptime
 
-
 def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         
     lap_offset = 1
@@ -195,8 +194,7 @@ def plot_times(performance):
     plt.legend()
     plt_show_sec(1.0)
 
-
-def calculate_optimal_time(performance):
+def calculate_model_time(performance):
     calculated_time = 0.0
 
     pit_intervals = performance.pit_intervals.reset_index(drop=True)
@@ -208,12 +206,12 @@ def calculate_optimal_time(performance):
         slope = performance.results[f"pit_{i}"]["coeffs"][0]
         intercept = performance.results[f"pit_{i}"]["coeffs"][1]
 
-        print(f"i={i}, slope={slope}, intercept={intercept}, x_n={x_n}, x_n1={x_n1}")
+        #print(f"i={i}, slope={slope}, intercept={intercept}, x_n={x_n}, x_n1={x_n1}")
 
         calculated_time += 0.5 * slope * (x_n1**2 - x_n**2) + intercept * (x_n1 - x_n) + performance.pit_avr_stoptime
 
-    print("Calculated time:", calculated_time, "\n")
-    print("Origina time: ", performance.original_time.total_seconds())
+    #print("Calculated time:", calculated_time, "\n")
+    #print("Origina time: ", performance.original_time.total_seconds())
 
     return None
 
@@ -293,7 +291,7 @@ for driver in session_drivers:
     #getting pit_time
     pit_time, pit_laps = get_pit_time_of_driver(driver)
     performance.pit_avr_stoptime = get_pit_avr_stoptime(driver)
-    print(performance.pit_avr_stoptime)
+    #print(performance.pit_avr_stoptime)
     """print("Pit times: ", pit_time, "\n")
     print("Pit laps: ", pit_laps, "\n")
     print("\n")"""
@@ -319,4 +317,7 @@ for driver in session_drivers:
 # Use Objects to do some analysis
 for performance in driver_performances:
 
-    calculate_optimal_time(performance)
+    calculate_model_time(performance)
+
+
+
