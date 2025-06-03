@@ -212,7 +212,8 @@ def optimize_pit(performance, show_seconds=30):
         stint_funcs = {}
         for stint in range(number_of_stints):
             slope, intercept = performance.results[f'pit_{stint}']["coeffs"]
-            stint_penalty =  max(0, -slope) #penalty for being on a stint for long
+            penalty_scale = 0.5
+            stint_penalty =  max(0, -slope) * penalty_scale #penalty for being on a stint for long
             stint_funcs[stint] = (slope, intercept, stint_penalty)
 
         # Generate all valid pit stop combinations
@@ -231,7 +232,10 @@ def optimize_pit(performance, show_seconds=30):
                 a, b, c = stint_funcs[stint]
                 start_lap = lap_points[stint]
                 end_lap = lap_points[stint + 1]
-                total_time += fast_integrate_linear(a, b, c, start_lap, end_lap)
+                linear_part = (a / 2) * (end_lap**2 - start_lap**2) + b * (end_lap - start_lap)
+                stint_length = end_lap - start_lap
+                length_penalty = c * (stint_length**2)
+                total_time += linear_part + length_penalty
             total_time += average_pit_time * (number_of_stints - 1)
             return total_time
 
