@@ -161,7 +161,7 @@ def plt_show_sec(duration):
     plt.pause(duration)
     plt.close()
 
-def plot_times(performance):
+def plot_times(performance, show_seconds):
 
     #plot dimensions
     width = 8
@@ -191,73 +191,76 @@ def plot_times(performance):
     plt.title(f'Point Plot of Lap Times for each Pit')
     plt.xlabel('Laps per Pit of '+ performance.driver + ' in ' + session_name)
     plt.xticks(np.arange(0, lap_offset + 5, 5)) #show every 5 lap on x axis
-    plt.ylabel('Lap Times per Pit (first and last lap per pit ignored for trend)')
+    plt.ylabel('Lap Times (s) per Pit (first and last lap per pit ignored for trend)')
     plt.grid(True)
     plt.legend()
-    plt_show_sec(30.0)
+    plt_show_sec(show_seconds)
 
-def optimize_pit(performance):
+def optimize_pit(performance, show_seconds=30):
+
     # Constants
     number_of_laps = int(performance.pit_intervals.iloc[-1])
     average_pit_time = performance.pit_avr_stoptime
     number_of_stints = len(performance.pit_intervals)  # e.g. 3 stints → 2 pit stops
 
-    x = symbols('x')
-    stint_funcs = {}
+    if number_of_stints < 2:
+        print("There are no pit stops for ", performance.driver, " to optimize for.\n")
 
-    # Build symbolic functions for each stint (0-indexed)
-    for stint in range(number_of_stints):
-        slope, intercept = performance.results[f'pit_{stint}']["coeffs"]
-        stint_funcs[stint] = slope * x + intercept
-
-    # Generate all valid pit stop lap combinations
-    valid_laps = range(1, number_of_laps-1)
-    possible_pit_combinations = list(itertools.combinations(valid_laps, number_of_stints - 1))
-
-    def total_race_time(pit_laps):
-        # Construct full lap intervals: [start] + pit stops + [end]
-        lap_points = [1] + list(pit_laps) + [number_of_laps]
-        total_time = 0
-
+    else:
+        # Get linear coefficients (slope, intercept) for each stint
+        stint_funcs = {}
         for stint in range(number_of_stints):
-            start_lap = lap_points[stint]
-            end_lap = lap_points[stint + 1]
-            stint_time = integrate(stint_funcs[stint], (x, start_lap, end_lap))
-            total_time += stint_time
+            slope, intercept = performance.results[f'pit_{stint}']["coeffs"]
+            stint_funcs[stint] = (slope, intercept)
 
-        # Add pit stop time for each stop (stints - 1)
-        total_time += average_pit_time * (number_of_stints - 1)
-        return float(total_time)
+        # Generate all valid pit stop combinations
+        valid_laps = range(1, number_of_laps - 1)
+        possible_pit_combinations = itertools.combinations(valid_laps, number_of_stints - 1)
 
-    # Evaluate all combinations to find the optimal one
-    best_combination = None
-    best_time = float('inf')
-    results = []
+        # Fast integration of linear function a*x + b from x1 to 
+        def fast_integrate_linear(a, b, x1, x2):
+            return (a / 2) * (x2**2 - x1**2) + b * (x2 - x1)
 
-    for combo in possible_pit_combinations:
-        time = total_race_time(combo)
-        results.append((combo, time))
-        if time < best_time:
-            best_time = time
-            best_combination = combo
+        def total_race_time(pit_laps):
+            lap_points = [1] + list(pit_laps) + [number_of_laps]
+            total_time = 0
+            for stint in range(number_of_stints):
+                a, b = stint_funcs[stint]
+                start_lap = lap_points[stint]
+                end_lap = lap_points[stint + 1]
+                total_time += fast_integrate_linear(a, b, start_lap, end_lap)
+            total_time += average_pit_time * (number_of_stints - 1)
+            return total_time
 
-    # Plot results
-    x_vals = [sum(combo)/len(combo) if combo else 0 for combo, _ in results]
-    y_vals = [t for _, t in results]
+        # Evaluate combinations
+        best_combination = None
+        best_time = float('inf')
+        results = []
 
-    plt.figure(figsize=(10, 6))
-    plt.scatter(x_vals, y_vals, c='blue')
-    if best_combination:
-        avg_lap = sum(best_combination) / len(best_combination)
-        plt.axvline(avg_lap, color='red', linestyle='--',
-                    label=f'Optimal Pit(s): {best_combination}')
-    plt.title('Total Race Time vs Pit Strategy')
-    plt.xlabel('Pit stop lap of '+ performance.driver + ' in ' + session_name)
-    plt.ylabel('Total Race Time (s)')
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt_show_sec(30)
+        for combo in possible_pit_combinations:
+            time = total_race_time(combo)
+            results.append((combo, time))
+            if time < best_time:
+                best_time = time
+                best_combination = combo
+
+        # Plot results
+        x_vals = [sum(combo)/len(combo) if combo else 0 for combo, _ in results]
+        y_vals = [t for _, t in results]
+
+        plt.figure(figsize=(10, 6))
+        plt.scatter(x_vals, y_vals, c='blue')
+        if best_combination:
+            avg_lap = sum(best_combination) / len(best_combination)
+            plt.axvline(avg_lap, color='red', linestyle='--',
+                        label=f'Optimal Pit(s): {best_combination}')
+        plt.title('Total Race Time vs Pit Strategy')
+        plt.xlabel(f'Pit stop lap of {performance.driver} in {session_name}')
+        plt.ylabel('Total Race Time (s)')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt_show_sec(show_seconds) 
 
 
 ### LOADING AND SELECTING SESSION DATA
@@ -353,7 +356,7 @@ for driver in session_drivers:
 
     performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
 
-    plot_times(performance)
+    plot_times(performance, show_seconds=(1))
 
     #add to series of objects
     driver_performances = pd.concat([pd.Series([performance])])
@@ -361,8 +364,7 @@ for driver in session_drivers:
 
 # Use Objects to do some analysis
 for performance in driver_performances:
-
-    optimize_pit(performance)
+    optimize_pit(performance, show_seconds=(3))
 
 
 
