@@ -23,6 +23,21 @@ stint2_func = sympify(stint2_expr)
 print("Stint 1 function:", stint1_func)
 print("Stint 2 function:", stint2_func)
 
+
+
+# Input for 5 compound tire types
+compound_tire_func = {}
+for i in range(1, 6):
+    name = f"C{i}"
+    default_expr = f"{0.1 * i}*x + {5 * i}"
+    expr = input(f"Enter the function for compound tire {name} (in terms of x) [default: {default_expr}]: ") or default_expr
+    compound_tire_func[name] = sympify(expr)
+
+
+for i in range(1, 6):
+    print(f"Compound tire C{i} function:", compound_tire_func[f"C{i}"])
+
+
 # Function to calculate total time for a given pit lap
 def total_race_time(pit_lap_val):
     stint1_area = integrate(stint1_func, (x, 1, pit_lap_val))
