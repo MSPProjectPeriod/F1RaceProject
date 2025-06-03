@@ -10,11 +10,17 @@ import time
 ### OBJECTS
 
 class driver_Performance:
-    def __init__(self, driver=str, pit_intervals=pd.Series(dtype=int), pit_results=None, original_time=None, lap_count=None):
+    def __init__(self, driver=str, pit_intervals=pd.Series(dtype=int), pit_results=None, pit_avr_stoptime=None, original_time=None, lap_count=None):
         self.driver = driver
         self.pit_intervals = pit_intervals #interval in laps
         self.pit_results = pit_results
+        self.pit_avr_stoptime = pit_avr_stoptime
         self.original_time = original_time
+
+class pit_strat:
+    def __init__(self,pit_intervals=pd.Series(dtype=int), pit_lines=None):
+        self.pit_intervals
+        self.pit_lines
 
 ### FUNCTIONS
 
@@ -62,7 +68,7 @@ def csv_file_manager(session_drivers):
 
 def get_pit_time_of_driver(session_driver):
     pit_time = pd.Series(dtype='timedelta64[ns]')
-    pit_laps = pd.Series(dtype=int)
+    pit_laps = pd.Series([0])
     pit_count = 0
     for index, value in list(session.laps.pick_drivers(session_driver).Time.items())[1:]:
         if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(session_driver).index[-1]:
@@ -96,6 +102,27 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
             pit_index += 1
             continue
     return time_per_lap_per_pit_time_per_pit
+
+def get_pit_avr_stoptime(session_driver):
+    pit_avr_stoptime = 0.0
+    count = 0
+    
+    pit_in = session.laps.pick_drivers(session_driver).PitInTime
+    pit_out = session.laps.pick_drivers(session_driver).PitOutTime
+
+    for index, value in list(pit_in.items())[:-1]:
+        in_time = pit_in.iloc[index]
+        out_time = pit_out.iloc[index+1]
+        if pd.isna(in_time) and pd.isna(out_time):
+            continue  # skip if any value is missing
+    
+        stop_time = (out_time - in_time).total_seconds()
+        pit_avr_stoptime += stop_time
+        count += 1
+    pit_avr_stoptime = pit_avr_stoptime / count
+
+    return pit_avr_stoptime
+
 
 def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         
@@ -168,40 +195,27 @@ def plot_times(performance):
     plt.legend()
     plt_show_sec(1.0)
 
-def plot_lines(performance):
 
-    #plot dimensions
-    width = 8
-    height = 6
-    plt.figure(figsize=(width, height))
+def calculate_optimal_time(performance):
+    calculated_time = 0.0
 
-    #dictionary of lines
-    lines = {}
-    lap_offset = 0
+    pit_intervals = performance.pit_intervals.reset_index(drop=True)
 
-    for pit, results in list(performance.results.items()):
+    for i in range(len(pit_intervals) - 1):
+        x_n = pit_intervals.iloc[i]
+        x_n1 = pit_intervals.iloc[i + 1]
 
-        slope, intercept = np.polyfit(np.arange(len(results["trends"])), results["trends"], 1)
+        slope = performance.results[f"pit_{i}"]["coeffs"][0]
+        intercept = performance.results[f"pit_{i}"]["coeffs"][1]
 
-        x = np.linspace(1+lap_offset, int(performance.pit_intervals.iloc[int(pit.split('_')[1])]), int(performance.pit_intervals.iloc[int(pit.split('_')[1])]))
-        lines[pit] = slope * x
+        print(f"i={i}, slope={slope}, intercept={intercept}, x_n={x_n}, x_n1={x_n1}")
 
-        lap_offset += int(performance.pit_intervals.iloc[int(pit.split('_')[1])])
+        calculated_time += 0.5 * slope * (x_n1**2 - x_n**2) + intercept * (x_n1 - x_n) + performance.pit_avr_stoptime
 
-        # Plot the lines
-        plt.plot(x, lines[pit], label=pit+' Trend Line: '+ str(slope))
+    print("Calculated time:", calculated_time, "\n")
+    print("Origina time: ", performance.original_time.total_seconds())
 
-
-    # Add labels and title
-    plt.xlabel('x')
-    #plt.xticks(np.arange(1, int(performance.pit_intervals.iloc[-1], 5))) #show every 5 lap on x axis
-    plt.ylabel('y')
-    plt.title('Linear Functions')
-    plt.legend()
-    plt.grid(True)
-
-    # Show plot
-    plt_show_sec(100)
+    return None
 
 ### LOADING AND SELECTING SESSION DATA
 csv_location = 'csv_files/'
@@ -278,12 +292,14 @@ for driver in session_drivers:
 
     #getting pit_time
     pit_time, pit_laps = get_pit_time_of_driver(driver)
+    performance.pit_avr_stoptime = get_pit_avr_stoptime(driver)
+    print(performance.pit_avr_stoptime)
     """print("Pit times: ", pit_time, "\n")
     print("Pit laps: ", pit_laps, "\n")
     print("\n")"""
 
     performance.pit_intervals = pit_laps
-    print(pit_time)
+
     performance.original_time = pit_time.iloc[-1]
     
     #getting time for each lap in a pit 
@@ -303,4 +319,4 @@ for driver in session_drivers:
 # Use Objects to do some analysis
 for performance in driver_performances:
 
-    plot_lines(performance)
+    calculate_optimal_time(performance)
