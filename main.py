@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
-import threading
-import time
+from sympy import symbols, sympify, integrate, lambdify
+from scipy.optimize import minimize_scalar
+import itertools
 
 ### OBJECTS
 
@@ -68,7 +69,7 @@ def csv_file_manager(session_drivers):
 
 def get_pit_time_of_driver(session_driver):
     pit_time = pd.Series(dtype='timedelta64[ns]')
-    pit_laps = pd.Series([0])
+    pit_laps = pd.Series(dtype=int)
     pit_count = 0
     for index, value in list(session.laps.pick_drivers(session_driver).Time.items())[1:]:
         if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(session_driver).index[-1]:
@@ -104,6 +105,7 @@ def get_lap_time_per_pit_time_of_driver(pit_time, session_driver):
     return time_per_lap_per_pit_time_per_pit
 
 def get_pit_avr_stoptime(session_driver):
+
     pit_avr_stoptime = 0.0
     count = 0
     
@@ -111,8 +113,8 @@ def get_pit_avr_stoptime(session_driver):
     pit_out = session.laps.pick_drivers(session_driver).PitOutTime
 
     for index, value in list(pit_in.items())[:-1]:
-        in_time = pit_in.iloc[index]
-        out_time = pit_out.iloc[index+1]
+        in_time = pit_in.loc[index]
+        out_time = pit_out.loc[index+1]
         if pd.isna(in_time) and pd.isna(out_time):
             continue  # skip if any value is missing
     
@@ -194,26 +196,69 @@ def plot_times(performance):
     plt.legend()
     plt_show_sec(1.0)
 
-def calculate_model_time(performance):
-    calculated_time = 0.0
+def optimize_pit(performance):
+    # Constants
+    number_of_laps = int(performance.pit_intervals.iloc[-1])
+    average_pit_time = performance.pit_avr_stoptime
+    number_of_stints = len(performance.pit_intervals)  # e.g. 3 stints → 2 pit stops
 
-    pit_intervals = performance.pit_intervals.reset_index(drop=True)
+    x = symbols('x')
+    stint_funcs = {}
 
-    for i in range(len(pit_intervals) - 1):
-        x_n = pit_intervals.iloc[i]
-        x_n1 = pit_intervals.iloc[i + 1]
+    # Build symbolic functions for each stint (0-indexed)
+    for stint in range(number_of_stints):
+        slope, intercept = performance.results[f'pit_{stint}']["coeffs"]
+        stint_funcs[stint] = slope * x + intercept
 
-        slope = performance.results[f"pit_{i}"]["coeffs"][0]
-        intercept = performance.results[f"pit_{i}"]["coeffs"][1]
+    # Generate all valid pit stop lap combinations
+    valid_laps = range(1, number_of_laps-1)
+    possible_pit_combinations = list(itertools.combinations(valid_laps, number_of_stints - 1))
 
-        #print(f"i={i}, slope={slope}, intercept={intercept}, x_n={x_n}, x_n1={x_n1}")
+    def total_race_time(pit_laps):
+        # Construct full lap intervals: [start] + pit stops + [end]
+        lap_points = [1] + list(pit_laps) + [number_of_laps]
+        total_time = 0
 
-        calculated_time += 0.5 * slope * (x_n1**2 - x_n**2) + intercept * (x_n1 - x_n) + performance.pit_avr_stoptime
+        for stint in range(number_of_stints):
+            start_lap = lap_points[stint]
+            end_lap = lap_points[stint + 1]
+            stint_time = integrate(stint_funcs[stint], (x, start_lap, end_lap))
+            total_time += stint_time
 
-    #print("Calculated time:", calculated_time, "\n")
-    #print("Origina time: ", performance.original_time.total_seconds())
+        # Add pit stop time for each stop (stints - 1)
+        total_time += average_pit_time * (number_of_stints - 1)
+        return float(total_time)
 
-    return None
+    # Evaluate all combinations to find the optimal one
+    best_combination = None
+    best_time = float('inf')
+    results = []
+
+    for combo in possible_pit_combinations:
+        time = total_race_time(combo)
+        results.append((combo, time))
+        if time < best_time:
+            best_time = time
+            best_combination = combo
+
+    # Plot results
+    x_vals = [sum(combo)/len(combo) if combo else 0 for combo, _ in results]
+    y_vals = [t for _, t in results]
+
+    plt.figure(figsize=(10, 6))
+    plt.scatter(x_vals, y_vals, c='blue')
+    if best_combination:
+        avg_lap = sum(best_combination) / len(best_combination)
+        plt.axvline(avg_lap, color='red', linestyle='--',
+                    label=f'Optimal Pit(s): {best_combination}')
+    plt.title('Total Race Time vs Pit Strategy')
+    plt.xlabel('Average Pit Stop Lap')
+    plt.ylabel('Total Race Time (s)')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt_show_sec(3)
+
 
 ### LOADING AND SELECTING SESSION DATA
 csv_location = 'csv_files/'
@@ -308,7 +353,7 @@ for driver in session_drivers:
 
     performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
 
-    plot_times(performance)
+    #plot_times(performance)
 
     #add to series of objects
     driver_performances = pd.concat([pd.Series([performance])])
@@ -317,7 +362,8 @@ for driver in session_drivers:
 # Use Objects to do some analysis
 for performance in driver_performances:
 
-    calculate_model_time(performance)
+    optimize_pit(performance)
+
 
 
 
