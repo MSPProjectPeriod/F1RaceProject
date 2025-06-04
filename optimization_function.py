@@ -106,11 +106,11 @@ def visualize_pit_strategy_surface():
 
     X, Z, Y = [], [], []
 
-    # Prepare lambdified functions again
+    # Use only the stint functions found to be optimal in best_combo_info
     stint_funcs = [
-        lambdify(u, stint1_func.subs(x, u), "numpy"),
-        lambdify(u, stint2_func.subs(x, u), "numpy"),
-        lambdify(u, stint3_func.subs(x, u), "numpy"),
+        lambdify(u, best_combo_info[0].subs(x, u), "numpy"),
+        lambdify(u, best_combo_info[1].subs(x, u), "numpy"),
+        lambdify(u, best_combo_info[2].subs(x, u), "numpy"),
     ]
 
     for p1 in pit1_range:
@@ -142,16 +142,17 @@ def visualize_pit_strategy_surface():
     opt_p1, opt_p2 = best_combo_info[3], best_combo_info[4]
     opt_time = best_combo_info[5]
     ax.scatter(opt_p1, opt_p2, opt_time, c='red', s=100, label='Optimal Pit Stops')
+    ax.text(opt_p1, opt_p2, opt_time, f"({opt_p1}, {opt_p2}, {opt_time:.1f})",
+            color='red', fontsize=10, fontweight='bold', ha='left', va='bottom')
 
-    # Draw red lines to axes
-    ax.plot([opt_p1, opt_p1], [opt_p2, opt_p2], [0, opt_time], color='red', linestyle='--')
-    ax.plot([opt_p1, opt_p1], [0, opt_p2], [opt_time, opt_time], color='red', linestyle='--')
-    ax.plot([0, opt_p1], [opt_p2, opt_p2], [opt_time, opt_time], color='red', linestyle='--')
+    # Determine nearest axis origin for each coordinate
+    x_target = 0 if opt_p1 < number_of_laps / 2 else number_of_laps
+    y_target = 0 if opt_p2 < number_of_laps / 2 else number_of_laps
+    z_target = 0  # z-axis always extends downward
 
-    # Annotate optimal values (offset labels to reduce overlap)
-    ax.text(opt_p1, opt_p2 - 3, 0, f"Pit 1: Lap {opt_p1}", color='red')
-    ax.text(opt_p1 - 3, opt_p2, 0, f"Pit 2: Lap {opt_p2}", color='red')
-    ax.text(opt_p1, opt_p2, opt_time, f"\nTime: {opt_time:.2f}", color='red')
+ 
+
+
 
     ax.set_xlabel("Pit 1 Lap")
     ax.set_ylabel("Pit 2 Lap")
@@ -161,8 +162,6 @@ def visualize_pit_strategy_surface():
     plt.tight_layout()
     plt.show()
 
-
-visualize_pit_strategy_surface()
 
 # --- Plot Lap Times with Optimal Pit Strategy ---
 def plot_stint_functions_with_pits():
@@ -279,4 +278,6 @@ def plot_stint_functions_with_pits():
     plt.tight_layout()
     plt.show()
 
+
 plot_stint_functions_with_pits()
+visualize_pit_strategy_surface()
