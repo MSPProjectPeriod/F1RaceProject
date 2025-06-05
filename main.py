@@ -227,9 +227,6 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
     ]
 
     filename = csv_location + "csv_results_each_driver.csv"
-    
-    file_exists = os.path.exists(filename)
-    is_empty = os.path.getsize(filename) == 0 if file_exists else True
 
     # Erase file content if it already exists and is not empty
     if os.path.isfile(filename) and os.path.getsize(filename) > 0:
@@ -237,10 +234,8 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
 
     with open(filename, mode='a', newline='') as file:
         writer = csv.writer(file)
-
-        if is_empty:
-            writer.writerow(headers)
-
+        writer.writerow(headers)  # write header after truncation
+        
         for performance in driver_performances:
             driver = getattr(performance, "driver", "UNKNOWN")
 
@@ -341,6 +336,7 @@ driver_performances = pd.Series(dtype=object)
 
 #Create Objects with all required information
 for driver in session_drivers:
+    
 
     performance = driver_Performance(driver)
 
