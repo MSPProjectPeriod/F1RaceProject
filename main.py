@@ -158,17 +158,17 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, sess
 
     return results
 
-def get_pit_tiretype(performance,session_driver):
+def get_pit_tiretype(performance,driver):
     pit_count = 0
 
-    for index, value in list(session.laps.pick_drivers(session_driver).Time.items())[1:]:
-        if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(session_driver).index[-1]:
+    for index, value in list(session.laps.pick_drivers(driver).Time.items())[1:]:
+        if not pd.isna(session.laps.pick_drivers(driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(driver).index[-1]:
             if pd.isna(session.laps.PitInTime.loc[index]):
-                tiretype = session.laps.Compound.loc[index] #trying to get compounds when pits happen
+                tiretype = session.laps.pick_drivers(driver).Compound.loc[index] #trying to get compounds when pits happen
                 performance.results[f"pit_{pit_count}"]["tiretype"] = tiretype
                 pit_count += 1
             else:
-                tiretype = session.laps.Compound.loc[index] #trying to get compounds when pits happen
+                tiretype =  session.laps.pick_drivers(driver).Compound.loc[index] #trying to get compounds when pits happen
                 performance.results[f"pit_{pit_count}"]["tiretype"] = tiretype
                 pit_count += 1
         if pit_count == len(performance.pit_intervals):
@@ -364,7 +364,7 @@ for driver in session_drivers:
 
 
     performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, driver)
-    performance.results = get_pit_tiretype(performance,session_drivers)
+    performance.results = get_pit_tiretype(performance,driver)
 
     #plot_times(performance, show_seconds=(1))
 
