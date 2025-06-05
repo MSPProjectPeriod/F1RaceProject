@@ -125,17 +125,17 @@ def get_pit_avr_stoptime(session_driver):
 
     return pit_avr_stoptime
 
-def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
+def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, session_driver):
         
     lap_offset = 1
     results = {}
-
+    tiretype = None
     for pit in range(0,len(time_per_lap_per_pit_time_per_pit)):
         data = time_per_lap_per_pit_time_per_pit[f"pit_{pit}"]
-
+        
         index = range(lap_offset,len(data)+lap_offset)
         values = data.values
-
+        
         # Compute linear trend line ignoring the first/last data point due to starting/end lap time delay
         coeffs = np.polyfit(index[1:-1], values[1:-1], 1)
         trends = np.poly1d(coeffs)(index)
@@ -151,10 +151,24 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         "coeffs": coeffs,
         "trends": trends,
         "residuals": residuals,
-        "std_err": std_err
+        "std_err": std_err,
+        "tiretype": tiretype
         }
 
     return results
+
+def get_pit_tiretype(performance,session_driver):
+    pit_count = 0
+    for index, value in list(session.laps.pick_drivers(session_driver).Time.items())[1:]:
+        if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(session_driver).index[-1]:
+            if pd.isna(session.laps.PitInTime.loc[index]):
+                tiretype = session.laps.Compound.loc[index] #trying to get compounds when pits happen
+            else:
+                tiretype = session.laps.Compound.loc[index] #trying to get compounds when pits happen
+            performance.results[f"pit_{pit_count}"]["tiretype"] = tiretype
+            pit_count += 1
+
+    return performance
 
 def plt_show_sec(duration):
     plt.show(block=False)
@@ -196,79 +210,9 @@ def plot_times(performance, show_seconds):
     plt.legend()
     plt_show_sec(show_seconds)
 
-def optimize_pit(performance, show_seconds=30):
-
-    # Constants
-    number_of_laps = int(performance.pit_intervals.iloc[-1])
-    average_pit_time = performance.pit_avr_stoptime
-    number_of_stints = len(performance.pit_intervals)  # e.g. 3 stints → 2 pit stops
-
-
-    if number_of_stints < 2:
-        print("There are no pit stops for ", performance.driver, " to optimize for.\n")
-
-    else:
-        # Get linear coefficients (slope, intercept) for each stint
-        stint_funcs = {}
-        for stint in range(number_of_stints):
-            slope, intercept = performance.results[f'pit_{stint}']["coeffs"]
-            penalty_scale = 0.5
-            stint_penalty =  max(0, -slope) * penalty_scale #penalty for being on a stint for long
-            stint_funcs[stint] = (slope, intercept, stint_penalty)
-
-        # Generate all valid pit stop combinations
-        valid_laps = range(1, number_of_laps - 1)
-        possible_pit_combinations = itertools.combinations(valid_laps, number_of_stints - 1)
-
-        # Fast integration of linear function a*x + b from x1 to 
-        def fast_integrate_linear(a, b, c, x1, x2):
-            
-            return (a / 2) * (x2**2 - x1**2) + b * (x2 - x1) + (c / 3) * (x2**3-x1**3)
-
-        def total_race_time(pit_laps):
-            lap_points = [1] + list(pit_laps) + [number_of_laps]
-            total_time = 0
-            for stint in range(number_of_stints):
-                a, b, c = stint_funcs[stint]
-                start_lap = lap_points[stint]
-                end_lap = lap_points[stint + 1]
-                linear_part = (a / 2) * (end_lap**2 - start_lap**2) + b * (end_lap - start_lap)
-                stint_length = end_lap - start_lap
-                length_penalty = c * (stint_length**2)
-                total_time += linear_part + length_penalty
-            total_time += average_pit_time * (number_of_stints - 1)
-            return total_time
-
-        # Evaluate combinations
-        best_combination = None
-        best_time = float('inf')
-        results = []
-
-        for combo in possible_pit_combinations:
-            time = total_race_time(combo)
-            results.append((combo, time))
-            if time < best_time:
-                best_time = time
-                best_combination = combo
-
-        # Plot results
-        x_vals = [sum(combo)/len(combo) if combo else 0 for combo, _ in results]
-        y_vals = [t for _, t in results]
-
-        plt.figure(figsize=(10, 6))
-        plt.scatter(x_vals, y_vals, c='blue')
-        if best_combination:
-            avg_lap = sum(best_combination) / len(best_combination)
-            plt.axvline(avg_lap, color='red', linestyle='--',
-                        label=f'Optimal Pit(s): {best_combination}')
-        plt.title('Total Race Time vs Pit Strategy')
-        plt.xlabel(f'Pit stop lap of {performance.driver} in {session_name}')
-        plt.ylabel('Total Race Time (s)')
-        plt.legend()
-        plt.grid(True)
-        plt.tight_layout()
-        plt_show_sec(show_seconds) 
-
+def export_performance(performance):
+    print("Performance: ", performance.results, "\n")
+    
 
 ### LOADING AND SELECTING SESSION DATA
 csv_location = 'csv_files/'
@@ -361,7 +305,9 @@ for driver in session_drivers:
     print(time_per_lap_per_pit_time_per_pit)
     print("\n")"""
 
-    performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
+
+    performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, driver)
+    performance = get_pit_tiretype(performance,session_drivers)
 
     plot_times(performance, show_seconds=(1))
 
@@ -370,8 +316,7 @@ for driver in session_drivers:
 
 
 # Use Objects to do some analysis
-for performance in driver_performances:
-    optimize_pit(performance, show_seconds=(3))
+export_performance(performance)
 
 
 
