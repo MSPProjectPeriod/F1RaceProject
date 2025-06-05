@@ -3,6 +3,7 @@ import fastf1
 import numpy as np
 import pandas as pd
 import os
+import csv
 import matplotlib.pyplot as plt
 from sympy import symbols, sympify, integrate, lambdify
 from scipy.optimize import minimize_scalar
@@ -11,10 +12,10 @@ import itertools
 ### OBJECTS
 
 class driver_Performance:
-    def __init__(self, driver=str, pit_intervals=pd.Series(dtype=int), pit_results=None, pit_avr_stoptime=None, original_time=None, lap_count=None):
+    def __init__(self, driver=str, pit_intervals=pd.Series(dtype=int), results=None, pit_avr_stoptime=None, original_time=None, lap_count=None):
         self.driver = driver
         self.pit_intervals = pit_intervals #interval in laps
-        self.pit_results = pit_results
+        self.results = results
         self.pit_avr_stoptime = pit_avr_stoptime
         self.original_time = original_time
 
@@ -159,16 +160,21 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, sess
 
 def get_pit_tiretype(performance,session_driver):
     pit_count = 0
+
     for index, value in list(session.laps.pick_drivers(session_driver).Time.items())[1:]:
         if not pd.isna(session.laps.pick_drivers(session_driver).PitInTime.loc[index]) or index == session.laps.pick_drivers(session_driver).index[-1]:
             if pd.isna(session.laps.PitInTime.loc[index]):
                 tiretype = session.laps.Compound.loc[index] #trying to get compounds when pits happen
+                performance.results[f"pit_{pit_count}"]["tiretype"] = tiretype
+                pit_count += 1
             else:
                 tiretype = session.laps.Compound.loc[index] #trying to get compounds when pits happen
-            performance.results[f"pit_{pit_count}"]["tiretype"] = tiretype
-            pit_count += 1
+                performance.results[f"pit_{pit_count}"]["tiretype"] = tiretype
+                pit_count += 1
+        if pit_count == len(performance.pit_intervals):
+            break
 
-    return performance
+    return performance.results
 
 def plt_show_sec(duration):
     plt.show(block=False)
@@ -210,8 +216,59 @@ def plot_times(performance, show_seconds):
     plt.legend()
     plt_show_sec(show_seconds)
 
-def export_performance(performance):
-    print("Performance: ", performance.results, "\n")
+def export_driver_performances_to_csv(driver_performances, csv_location):
+    headers = [
+        'driver',
+        'stint', 'tiretype',
+        'pit_interval',
+        'slope', 'intercept',
+        'std_err',
+        'value_mean', 'residual_std'
+    ]
+
+    filename = csv_location + "csv_results_each_driver.csv"
+    
+    file_exists = os.path.exists(filename)
+    is_empty = os.path.getsize(filename) == 0 if file_exists else True
+
+    # Erase file content if it already exists and is not empty
+    if os.path.isfile(filename) and os.path.getsize(filename) > 0:
+        open(filename, 'w').close()  # truncate the file
+
+    with open(filename, mode='a', newline='') as file:
+        writer = csv.writer(file)
+
+        if is_empty:
+            writer.writerow(headers)
+
+        for performance in driver_performances:
+            driver = getattr(performance, "driver", "UNKNOWN")
+
+            for stint_name, data in performance.results.items():
+                tiretype = data.get('tiretype', 'UNKNOWN')
+                coeffs = data.get('coeffs', None)
+                if coeffs is not None and len(coeffs) >= 2:
+                    slope = float(coeffs[0])
+                    intercept = float(coeffs[1])
+                else:
+                    slope = intercept = None
+
+                std_err = float(data.get('std_err', None))
+                index = data.get('index', range(0))
+                pit_interval = len(index) if isinstance(index, range) else None
+
+                values = np.array(data.get('values', []))
+                residuals = np.array(data.get('residuals', []))
+                value_mean = float(np.mean(values)) if values.size else None
+                residual_std = float(np.std(residuals)) if residuals.size else None
+
+                writer.writerow([
+                    driver, stint_name, tiretype,
+                    pit_interval, slope, intercept,
+                    std_err, value_mean, residual_std
+                ])
+                
+    print(f"Exported results to {filename}")
     
 
 ### LOADING AND SELECTING SESSION DATA
@@ -307,16 +364,18 @@ for driver in session_drivers:
 
 
     performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, driver)
-    performance = get_pit_tiretype(performance,session_drivers)
+    performance.results = get_pit_tiretype(performance,session_drivers)
 
-    plot_times(performance, show_seconds=(1))
+    #plot_times(performance, show_seconds=(1))
 
     #add to series of objects
-    driver_performances = pd.concat([pd.Series([performance])])
-
+    driver_performances = pd.concat([driver_performances,pd.Series([performance])])
 
 # Use Objects to do some analysis
-export_performance(performance)
+print(len(driver_performances))
+export_driver_performances_to_csv(driver_performances, csv_location)
+
+
 
 
 
