@@ -141,6 +141,9 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         coeffs = np.polyfit(index[1:-1], values[1:-1], 1)
         trends = np.poly1d(coeffs)(index)
 
+        coeffs_quad = np.polyfit(index[1:-1], values[1:-1], 2)
+        coeffs_cube = np.polyfit(index[1:-1], values[1:-1], 3)
+
         # Compute residuals and standard error
         residuals = values[1:-1] - trends[1:-1]
         std_err = np.std(residuals)
@@ -151,6 +154,8 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         "values": values,
         "coeffs": coeffs,
         "trends": trends,
+        "coeffs_quad": coeffs_quad,
+        "coeffs_cube": coeffs_cube,
         "residuals": residuals,
         "std_err": std_err,
         "tiretype": tiretype
@@ -221,7 +226,9 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
         'driver',
         'stint', 'tiretype',
         'pit_interval',
-        'function',
+        'function_lin',
+        'function_quad',
+        'function_cube',
         'std_err',
         'value_mean', 'residual_std'
     ]
@@ -242,6 +249,8 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
             for stint_name, data in performance.results.items():
                 tiretype = data.get('tiretype', 'UNKNOWN')
                 coeffs = data.get('coeffs', None)
+                coeffs_quad = data.get('coeffs_quad', None)
+                coeffs_cube = data.get('coeffs_cube', None)
                 if coeffs is not None and len(coeffs) >= 2:
                     slope = float(coeffs[0])
                     intercept = float(coeffs[1])
@@ -251,7 +260,9 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
                 std_err = float(data.get('std_err', None))
                 index = data.get('index', range(0))
                 pit_interval = len(index) if isinstance(index, range) else None
-                function = str(slope) + " * x + " + str(intercept)
+                function_lin = str(slope) + " * x + " + str(intercept)
+                function_quad = str(coeffs_quad[0]) + " * x**2 + " + str(coeffs_quad[1])
+                function_cube = str(coeffs_cube[0]) + " * x**3 + " + str(coeffs_cube[1])
                 values = np.array(data.get('values', []))
                 residuals = np.array(data.get('residuals', []))
                 value_mean = float(np.mean(values)) if values.size else None
@@ -259,7 +270,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
 
                 writer.writerow([
                     driver, stint_name, tiretype,
-                    pit_interval, function,
+                    pit_interval, function_lin, function_quad, function_cube,
                     std_err, value_mean, residual_std
                 ])
                 
