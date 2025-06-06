@@ -143,6 +143,7 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
 
         coeffs_quad = np.polyfit(index[1:-1], values[1:-1], 2)
         coeffs_cube = np.polyfit(index[1:-1], values[1:-1], 3)
+        coeffs_exp = np.polyfit(index[1:-1], np.log(values[1:-1]), 1)
 
         # Compute residuals and standard error
         residuals = values[1:-1] - trends[1:-1]
@@ -156,6 +157,7 @@ def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         "trends": trends,
         "coeffs_quad": coeffs_quad,
         "coeffs_cube": coeffs_cube,
+        "coeffs_exp": coeffs_exp,
         "residuals": residuals,
         "std_err": std_err,
         "tiretype": tiretype
@@ -229,6 +231,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
         'function_lin',
         'function_quad',
         'function_cube',
+        'function_exp',
         'std_err',
         'value_mean', 'residual_std'
     ]
@@ -251,6 +254,8 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
                 coeffs = data.get('coeffs', None)
                 coeffs_quad = data.get('coeffs_quad', None)
                 coeffs_cube = data.get('coeffs_cube', None)
+                coeffs_exp = data.get('coeffs_exp', None)
+
                 if coeffs is not None and len(coeffs) >= 2:
                     slope = float(coeffs[0])
                     intercept = float(coeffs[1])
@@ -263,6 +268,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
                 function_lin = str(slope) + " * x + " + str(intercept)
                 function_quad = str(coeffs_quad[0]) + " * x**2 + " + str(coeffs_quad[1])
                 function_cube = str(coeffs_cube[0]) + " * x**3 + " + str(coeffs_cube[1])
+                function_exp = str(np.exp(coeffs_exp[1])) + " * e^(" + str(coeffs_exp[0]) + " * x)"
                 values = np.array(data.get('values', []))
                 residuals = np.array(data.get('residuals', []))
                 value_mean = float(np.mean(values)) if values.size else None
@@ -270,7 +276,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
 
                 writer.writerow([
                     driver, stint_name, tiretype,
-                    pit_interval, function_lin, function_quad, function_cube,
+                    pit_interval, function_lin, function_quad, function_cube, function_exp,
                     std_err, value_mean, residual_std
                 ])
                 
