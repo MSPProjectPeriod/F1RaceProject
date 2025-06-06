@@ -126,7 +126,7 @@ def get_pit_avr_stoptime(session_driver):
 
     return pit_avr_stoptime
 
-def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, session_driver):
+def get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit):
         
     lap_offset = 1
     results = {}
@@ -221,7 +221,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
         'driver',
         'stint', 'tiretype',
         'pit_interval',
-        'slope', 'intercept',
+        'function',
         'std_err',
         'value_mean', 'residual_std'
     ]
@@ -251,7 +251,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
                 std_err = float(data.get('std_err', None))
                 index = data.get('index', range(0))
                 pit_interval = len(index) if isinstance(index, range) else None
-
+                function = str(slope) + " * x + " + str(intercept)
                 values = np.array(data.get('values', []))
                 residuals = np.array(data.get('residuals', []))
                 value_mean = float(np.mean(values)) if values.size else None
@@ -259,7 +259,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location):
 
                 writer.writerow([
                     driver, stint_name, tiretype,
-                    pit_interval, slope, intercept,
+                    pit_interval, function,
                     std_err, value_mean, residual_std
                 ])
                 
@@ -359,7 +359,7 @@ for driver in session_drivers:
     print("\n")"""
 
 
-    performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit, driver)
+    performance.results = get_pit_trends_coeffs_residuals_data(time_per_lap_per_pit_time_per_pit)
     performance.results = get_pit_tiretype(performance,driver)
 
     #plot_times(performance, show_seconds=(1))
