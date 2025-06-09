@@ -3,7 +3,7 @@ matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import math
-
+import re
 import numpy as np
 import pandas as pd
 import fastf1
@@ -538,7 +538,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location, show_in
         # Quadratic
         if coeff_sets["quad"]:
             avg = np.mean(coeff_sets["quad"], axis=0)
-            row["function_quad"] = f"{avg[0]:.5f} * x^2 + {avg[1]:.5f} * x + {avg[2]:.5f}"
+            row["function_quad"] = f"{avg[0]:.5f} * x**2 + {avg[1]:.5f} * x + {avg[2]:.5f}"
             y_true = []
             for perf in driver_performances:
                 for stint_name, data in perf.results.items():
@@ -577,7 +577,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location, show_in
         # Cubic
         if coeff_sets["cube"]:
             avg = np.mean(coeff_sets["cube"], axis=0)
-            row["function_cube"] = f"{avg[0]:.5f} * x^3 + {avg[1]:.5f} * x^2 + {avg[2]:.5f} * x + {avg[3]:.5f}"
+            row["function_cube"] = f"{avg[0]:.5f} * x**3 + {avg[1]:.5f} * x**2 + {avg[2]:.5f} * x + {avg[3]:.5f}"
             y_true = []
             for perf in driver_performances:
                 for stint_name, data in perf.results.items():
@@ -617,7 +617,7 @@ def export_driver_performances_to_csv(driver_performances, csv_location, show_in
         if coeff_sets["exp"]:
             log_a = np.log([c[1] for c in coeff_sets["exp"]])
             b = [c[0] for c in coeff_sets["exp"]]
-            row["function_exp"] = f"{np.exp(np.mean(log_a)):.5f} * e^({np.mean(b):.5f} * x)"
+            row["function_exp"] = f"{np.exp(np.mean(log_a)):.5f} * e**({np.mean(b):.5f} * x)"
             y_true = []
             for perf in driver_performances:
                 for stint_name, data in perf.results.items():
@@ -765,11 +765,12 @@ def export_driver_performances_to_csv(driver_performances, csv_location, show_in
                 index = data.get('index', range(0))
                 pit_interval = len(index) if isinstance(index, range) else None
                 function_lin = f"{slope:.5f} * x + {intercept:.5f}"
-                function_quad = f"{coeffs_quad[0]:.5f} * x^2 + {coeffs_quad[1]:.5f} * x + {coeffs_quad[2]:.5f}"
-                function_cube = f"{coeffs_cube[0]:.5f} * x^3 + {coeffs_cube[1]:.5f} * x^2 + {coeffs_cube[2]:.5f} * x + {coeffs_cube[3]:.5f}"
-                function_exp = f"{np.exp(coeffs_exp[1]):.5f} * e^({coeffs_exp[0]:.5f} * x)"
+                function_quad = f"{coeffs_quad[0]:.5f} * x**2 + {coeffs_quad[1]:.5f} * x + {coeffs_quad[2]:.5f}"
+                function_cube = f"{coeffs_cube[0]:.5f} * x**3 + {coeffs_cube[1]:.5f} * x**2 + {coeffs_cube[2]:.5f} * x + {coeffs_cube[3]:.5f}"
+                function_exp = f"{np.exp(coeffs_exp[1]):.5f} * e**({coeffs_exp[0]:.5f} * x)"
                 values = np.array(data.get('values', []))
-                # Filter out NaNs for value_mean and log if any were present
+                # Filter out NaNs for 
+                #value_mean and log if any were present
                 filtered_values = values[~np.isnan(values)] if values.size else np.array([])
                 value_mean = round(float(np.mean(filtered_values)), 5) if filtered_values.size else None
                 comments = ""
