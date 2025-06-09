@@ -61,30 +61,61 @@ import numpy as np
 x = symbols('x')                 # Primary lap counter for each stint
 u = symbols('u')                 # Reset lap counter after a pit stop
 
+import sys
+
 # --- Load stint functions from CSV ---
 data_file = "csv_files/csv_results_0_2024_Bahrain_Grand_Prix_Grand_Prix.csv"
 df = pd.read_csv(data_file)
 
-number_of_laps = int(df['Total Laps'].iloc[0])  # Override from CSV
+print("\nAvailable drivers and data types:")
+print(df['driver'].unique())
+driver_filter = input("Enter driver name or leave blank to use average data: ").strip().lower()
+
+if driver_filter:
+    filtered_df = df[df['driver'].str.lower() == driver_filter]
+    if not filtered_df.empty:
+        number_of_laps = int(filtered_df['Total Laps'].iloc[0])
+    else:
+        print(f"Driver '{driver_filter}' not found. Using average data.")
+        filtered_df = df[df['driver'].str.upper().str.startswith("AVERAGE_EQUATION")]
+else:
+    filtered_df = df[df['driver'].str.upper().str.startswith("AVERAGE_EQUATION")]
+    number_of_laps = int(df['Total Laps'].iloc[0])
 
 # Extract average equations by compound
 compound_map = {'Soft': None, 'Medium': None, 'Hard': None}
 for compound in compound_map.keys():
-    match = df[
-        df['driver'].str.upper().str.startswith("AVERAGE_EQUATION", na=False) &
-        (df['tiretype'].str.upper() == compound.upper())
+    match = filtered_df[
+        (filtered_df['tiretype'].str.upper() == compound.upper())
     ]
     if not match.empty:
         compound_map[compound] = match.iloc[0]['besttrendline']
 
+# After mapping, print warning for missing formulas
+for compound, formula in compound_map.items():
+    if formula is None:
+        print(f"⚠️ Missing formula for: {compound}")
+
 # Map compound functions
+from sympy.parsing.sympy_parser import parse_expr
+
+def parse_equation_string(expr_str):
+    try:
+        expr_str = expr_str.replace("^", "**")
+        expr_str = expr_str.replace("e**", "exp(1)**")
+        expr_str = expr_str.replace("e*", "exp(1)*")
+        return parse_expr(expr_str, evaluate=True)
+    except Exception as e:
+        print(f"Failed to parse equation: {expr_str}")
+        raise e
+
 tire_exprs = {}
 if compound_map['Soft']:
-    tire_exprs['soft'] = sympify(compound_map['Soft'].replace("^", "**"))
+    tire_exprs['soft'] = parse_equation_string(compound_map['Soft'])
 if compound_map['Medium']:
-    tire_exprs['medium'] = sympify(compound_map['Medium'].replace("^", "**"))
+    tire_exprs['medium'] = parse_equation_string(compound_map['Medium'])
 if compound_map['Hard']:
-    tire_exprs['hard'] = sympify(compound_map['Hard'].replace("^", "**"))
+    tire_exprs['hard'] = parse_equation_string(compound_map['Hard'])
 
 # Assign only available stint functions in preferred order: Soft, Medium, Hard
 stint_exprs = []
@@ -95,15 +126,13 @@ if 'medium' in tire_exprs:
 if 'hard' in tire_exprs:
     stint_exprs.append(tire_exprs['hard'])
 
-if not stint_exprs:
-    raise ValueError("No valid tire performance functions found in the file.")
+if len(stint_exprs) < 2:
+    raise ValueError("At least two valid tire performance functions are required. Only found: " + ', '.join(tire_exprs.keys()))
+
+print(f"✔️ Using tire compounds: {list(tire_exprs.keys())}")
 
 # Fallback: Assign symbolic names
 stint1_func, stint2_func, stint3_func = (stint_exprs + [stint_exprs[-1]] * 3)[:3]
-
-# Ensure at least two valid stint functions
-if len(stint_exprs) < 2:
-    raise ValueError("At least two valid tire performance functions are required. Only found: " + ', '.join(tire_exprs.keys()))
 
 
 # Move degradation_factors definition here before use
@@ -138,9 +167,8 @@ compound_limits = {}
 for expr in [stint1_func, stint2_func, stint3_func]:
     for label, formula in tire_exprs.items():
         if expr == formula:
-            match = df[
-                df['driver'].str.upper().str.startswith("AVERAGE_EQUATION", na=False) &
-                (df['tiretype'].str.lower() == label)
+            match = filtered_df[
+                (filtered_df['tiretype'].str.lower() == label)
             ]
             if not match.empty:
                 compound = match.iloc[0]['compound']
@@ -216,9 +244,6 @@ for i, base_expr in enumerate(stint_base_exprs):
 
 
 
-# Now print only legal pit stop locations where both stints are within durable-mode hard limits:
-print("\n--- One-Pit Stop Strategy Candidates (Filtered by Durable Limits) ---")
-print(f"Listing only legal pit stop locations where both stints are within durable-mode hard limits:")
 
 # --- Helper: Map stint function to its index for efficient lookup ---
 func_index_map = {}
@@ -231,7 +256,8 @@ if 'func_mode_cache' not in globals():
 def get_mode_func(f_idx, mode):
     if (f_idx, mode) not in func_mode_cache:
         adjusted_expr = stint_mode_settings[f_idx][mode]
-        func_mode_cache[(f_idx, mode)] = lambdify(u, adjusted_expr.subs(x, u), "numpy")
+        expr_num = adjusted_expr.subs({x: u})  # ensure all symbolic variables are replaced
+        func_mode_cache[(f_idx, mode)] = lambdify(u, expr_num, modules="numpy")
     return func_mode_cache[(f_idx, mode)]
 
  # --- Precompute penalty cache ---
@@ -240,76 +266,9 @@ penalty_cache = np.cumsum(np.exp(np.arange(1, max_penalty_len + 1) / 5) - 1)
 
 # Fatigue penalty function (uses penalty_cache)
 def fatigue_penalty(t_array, soft_limit, factor):
-    return np.zeros_like(t_array)
+    return np.zeros_like(t_array, dtype=float)
 
-best_strategy = None
-best_total_time = float('inf')
-for pit in range(min_lap_buffer + 1, number_of_laps - min_lap_buffer + 1):
-    stint1_len = pit
-    stint2_len = number_of_laps - pit
-
-    # Use the first two stint functions and determine the corresponding compound labels
-    f1_idx, f2_idx = 0, 1
-    func1 = stint_exprs[f1_idx]
-    func2 = stint_exprs[f2_idx]
-
-    compound1 = None
-    compound2 = None
-    for label, func in tire_exprs.items():
-        if func == func1:
-            compound1 = label
-        if func == func2:
-            compound2 = label
-
-    if not compound1 or not compound2:
-        continue  # Skip if compound mapping is missing
-
-    max1 = tire_max_limits[compound1]['durable']['hard_limit']
-    max2 = tire_max_limits[compound2]['durable']['hard_limit']
-
-    if stint1_len <= max1 and stint2_len <= max2:
-        print(f"  P1: {pit:<2} | S1: {stint1_len:<2} | S2: {stint2_len:<2}")
-
-        valid_modes = []
-        for mode in ['durable', 'neutral', 'aggressive']:
-            max1_mode = tire_max_limits[compound1][mode]['hard_limit']
-            max2_mode = tire_max_limits[compound2][mode]['hard_limit']
-            if stint1_len <= max1_mode and stint2_len <= max2_mode:
-                valid_modes.append(mode.capitalize())
-
-        if valid_modes:
-            print(f"    ↳ Valid in mode(s): {', '.join(valid_modes)}")
-            # For each valid mode combination, calculate total race time and print strategy details
-            from itertools import product
-            for mode_combo in product(valid_modes, repeat=2):
-                mode1, mode2 = mode_combo
-                f1_idx = func_index_map[func1]
-                f2_idx = func_index_map[func2]
-                f1 = get_mode_func(f1_idx, mode1.lower())
-                f2 = get_mode_func(f2_idx, mode2.lower())
-                laps1 = np.arange(stint1_len)
-                laps2 = np.arange(stint2_len)
-                penalty1 = fatigue_penalty(laps1, stint_limits_array[f1_idx][0], penalty_growth_factors[f1_idx])
-                penalty2 = fatigue_penalty(laps2, stint_limits_array[f2_idx][0], penalty_growth_factors[f2_idx])
-                time1 = np.sum(f1(laps1) + penalty1)
-                time2 = np.sum(f2(laps2) + penalty2)
-                total_time = time1 + time2 + average_pit_time
-                print(f"    → Modes: S1={mode1}, S2={mode2}, Total Race Time: {total_time:.2f}s")
-                if total_time < best_total_time:
-                    best_total_time = total_time
-                    best_strategy = {
-                        'P1': pit,
-                        'S1': stint1_len,
-                        'S2': stint2_len,
-                        'modes': (mode1, mode2),
-                        'time': total_time
-                    }
-
-# After the loop over all pit stops, print the best one-stop strategy if found
-
-if best_strategy:
-    print("\n--- Best One-Stop Strategy ---")
-    print(f"P1: {best_strategy['P1']} Modes: S1={best_strategy['modes'][0]}, S2={best_strategy['modes'][1]} | Total Time: {best_strategy['time']:.2f}s")
+results = []
 
 
 # === Multi-Pit Stop Strategy Candidates ===
@@ -321,90 +280,10 @@ from itertools import product as iter_product
 from itertools import combinations_with_replacement
 
 # Store results for each multi-pit strategy
-results = []
-
-def plot_strategy_lap_profile(strategy):
-    import matplotlib.pyplot as plt
-
-    *func_combo, pit_laps, stint_lengths, modes, total_time = strategy
-
-    fig, ax1 = plt.subplots(figsize=(12, 6))
-
-    # Prepare lap-by-lap times and cumulative time using stint segments
-    cumulative_times = []
-    lap_labels = []
-    compound_labels = []
-
-    # Draw each stint as an independent segment
-    cumulative_times = []
-    current_lap = 0
-    ax2 = ax1.twinx()
-    # Compute compound labels for each stint
-    compound_labels_stint = []
-    for func, mode in zip(func_combo, modes):
-        label = None
-        for name, expr in tire_exprs.items():
-            if expr == func:
-                label = f"{name.capitalize()} ({mode})"
-                break
-        compound_labels_stint.append(label)
-
-    for i, (stint_len, label) in enumerate(zip(stint_lengths, compound_labels_stint)):
-        lap_range = np.arange(current_lap, current_lap + stint_len)
-        f_idx = func_index_map[func_combo[i]]
-        f = get_mode_func(f_idx, modes[i])
-        laps = np.arange(stint_len)
-        penalties = fatigue_penalty(laps, stint_limits_array[f_idx][0], penalty_growth_factors[f_idx])
-        lap_times_segment = f(laps) + penalties
-        # Insert pit stop time at the start of each stint after the first (visual offset)
-        if i > 0:
-            lap_times_segment[0] += average_pit_time  # simulate pit time in lap time
-        # Plot the segment
-        ax1.plot(lap_range, lap_times_segment, label=f'Stint {i+1}: {label}', linewidth=2)
-        # Cumulative time, with pit stop time for non-first stints
-        if cumulative_times:
-            cumulative_segment = np.cumsum(lap_times_segment) + cumulative_times[-1] + average_pit_time
-        else:
-            cumulative_segment = np.cumsum(lap_times_segment)
-        # Instead of plotting each segment, collect for a single line after the loop
-        lap_labels.extend(lap_range)
-        cumulative_times.extend(cumulative_segment)
-        compound_labels.extend([label] * stint_len)
-        current_lap += stint_len
-
-    lap_labels = np.array(lap_labels)
-    # After collecting all lap_labels and cumulative_times, plot a single cumulative line
-    ax2.plot(lap_labels, cumulative_times, color='grey')
-    ax2.fill_between(lap_labels, cumulative_times, color='grey', alpha=0.2)
-    # Plot settings
-    ax1.set_xlabel("Lap")
-    ax1.set_ylabel("Time per Lap (s)", color='tab:blue')
-    ax1.set_ylim(90, 130)
-    ax1.tick_params(axis='y', labelcolor='tab:blue')
-
-    ax2.set_ylabel("Cumulative Time (s)", color='grey')
-    ax2.tick_params(axis='y', labelcolor='grey')
-
-    # Add pit stop lines
-    for pit in pit_laps:
-        ax1.axvline(pit, color='red', linestyle='--', linewidth=1)
-
-    # Annotate stint functions
-    prev = 0
-    for i, stint_len in enumerate(stint_lengths):
-        mid = prev + stint_len // 2
-        if compound_labels:
-            ax1.text(mid, max(ax1.get_ylim()) * 0.95, compound_labels[prev], rotation=0,
-                     ha='center', va='bottom', fontsize=9, color='black')
-        prev += stint_len
-
-    plt.title("Race Lap Profile")
-    ax1.legend(loc='upper left', fontsize='small', title='Stint Legend')
-    plt.tight_layout()
-    plt.show()
 
 
-for num_pits in [2, 3, 4]:
+
+for num_pits in [1, 2, 3, 4]:
     print(f"\n== {num_pits}-Pit Strategy ==")
     strat_start_time = time.time()
     best_time = float('inf')
@@ -504,8 +383,6 @@ for num_pits in [2, 3, 4]:
         # Format for results: (func_combo, pits, stints, modes, best_time)
         formatted_plan = func_combo + (pits, stints, modes, best_time)
         results.append((num_pits, formatted_plan))
-        # Plot lap profile for this strategy
-        plot_strategy_lap_profile(formatted_plan)
     else:
         results.append((num_pits, None))
 
@@ -670,49 +547,135 @@ def visualize_pit_strategy_surface():
 import matplotlib.pyplot as plt
 import numpy as np
 
+def plot_all_optimal_strategies(results):
+    """
+    Plot lap times for all optimal strategies found in results.
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle("Lap Times for All Optimal Pit Strategies")
+    n_plots = 0
+    for idx, res in enumerate(results):
+        if res[1] is None:
+            continue
+        n_pits, plan = res
+        func_combo = plan[:n_pits+1]
+        pits = plan[n_pits+1]
+        stints = plan[n_pits+2]
+        modes = plan[n_pits+3]
+        total_time = plan[n_pits+4]
+        compounds = []
+        for func in func_combo:
+            for label, val in tire_exprs.items():
+                if val == func:
+                    compounds.append(label)
+                    break
+        lap_times_full = []
+        lap_pointer = 0
+        for i, (func, stint_len, mode) in enumerate(zip(func_combo, stints, modes)):
+            f_idx = func_index_map[func]
+            f = get_mode_func(f_idx, mode)
+            laps = np.arange(stint_len)
+            penalty = fatigue_penalty(laps, stint_limits_array[f_idx][0], penalty_growth_factors[f_idx])
+            lap_times = np.array(f(laps), dtype=np.float64) + penalty
+            # Inserted: Add pit stop time to first lap after a pit stop
+            if i > 0:
+                lap_times[0] += average_pit_time
+            lap_times_full.extend(lap_times)
+            lap_pointer += stint_len
+        ax = axes.flat[n_plots]
+        ax.plot(np.arange(1, len(lap_times_full)+1), lap_times_full, label=f"{n_pits} Pit(s)")
+        ax.set_title(f"{n_pits}-Pit: Pits@{pits}\nTires: {compounds}\nModes: {modes}\nTotal: {total_time:.1f}s")
+        ax.set_xlabel("Lap")
+        ax.set_ylabel("Lap Time (s)")
+        ax.legend()
+        n_plots += 1
+        if n_plots >= 4:
+            break
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    plt.show()
+
+
+
+
+
 # --- Plot all optimal strategies in 2x2 grid ---
-def plot_all_strategies(results):
-    fig, axs = plt.subplots(2, 2, figsize=(14, 10))
+def plot_all_optimal_strategies(results):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    strategies = [r for r in results if r[1] is not None]
+    n = len(strategies)
+    if n == 0:
+        print("No valid strategies to plot.")
+        return
+    cols = 2
+    rows = (n + 1) // cols
+
+    fig, axs = plt.subplots(rows, cols, figsize=(16, 4 * rows))
     axs = axs.flatten()
 
-    for idx, (num_pits, strategy) in enumerate(results):
-        ax = axs[idx]
-        ax.set_title(f"{num_pits}-Pit Strategy")
-        ax.set_xlabel("Stint")
-        ax.set_ylabel("Time per Stint (s)")
+    # Inserted: Add driver name or AVERAGE to suptitle
+    fig_driver = driver_filter.upper() if driver_filter else "AVERAGE"
+    fig.suptitle(f"Lap Times for All Optimal Pit Strategies ({fig_driver})")
 
-        if strategy is None:
-            ax.text(0.5, 0.5, "No valid strategy found", ha='center', va='center', transform=ax.transAxes)
-            continue
-
+    for idx, (num_pits, strategy) in enumerate(strategies):
         *func_combo, pits, stints, modes, total_time = strategy
-        compound_labels = []
-        stint_times = []
+        ax1 = axs[idx]
+        ax2 = ax1.twinx()
 
-        for i, (func, stint_len, mode) in enumerate(zip(func_combo, stints, modes)):
-            for label, expr in tire_exprs.items():
-                if expr == func:
-                    compound_labels.append(f"{label.capitalize()} ({mode})")
-                    f_idx = func_index_map[func]
-                    f = get_mode_func(f_idx, mode)
-                    laps = np.arange(stint_len)
-                    penalty = fatigue_penalty(laps, stint_limits_array[f_idx][0], penalty_growth_factors[f_idx])
-                    stint_time = np.sum(f(laps) + penalty)
-                    stint_times.append(stint_time)
+        cumulative_times = []
+        lap_labels = []
+        current_lap = 0
+        lap_times_full = []
+        # Get compounds for labeling
+        compounds = []
+        for func in func_combo:
+            for label, val in tire_exprs.items():
+                if val == func:
+                    compounds.append(label)
                     break
+        for i, (func, stint_len, mode) in enumerate(zip(func_combo, stints, modes)):
+            f_idx = func_index_map[func]
+            f = get_mode_func(f_idx, mode)
+            laps = np.arange(stint_len)
+            penalty = fatigue_penalty(laps, stint_limits_array[f_idx][0], penalty_growth_factors[f_idx])
+            lap_times = np.array([float(val) for val in f(laps)], dtype=float) + penalty
+            # Inserted: Add pit stop time to first lap after a pit stop
+            if i > 0:
+                lap_times[0] += average_pit_time  # Add pit stop time to first lap after pit
+            lap_range = np.arange(current_lap, current_lap + stint_len)
+            cumulative = np.cumsum(lap_times) + (cumulative_times[-1] if cumulative_times else 0)
+            ax1.plot(lap_range, lap_times, label=f'Stint {i+1} ({compounds[i].upper()}, Mode: {mode})')
+            # ax2.plot(lap_range, cumulative, color='grey', alpha=0.5)  # REMOVE/COMMENT OUT per instructions
+            cumulative_times.extend(cumulative.tolist())
+            lap_times_full.extend(lap_times.tolist())
+            current_lap += stint_len
+        # After this block, store adjusted cumulative lap times as well
+        lap_times_full.extend(lap_times.tolist())
 
-        ax.bar(range(len(stint_times)), stint_times, tick_label=compound_labels)
-        if stint_times:
-            ax.set_ylim(0, max(stint_times) * 1.2)
-        ax.text(0.5, 1.05, f"Total: {total_time:.2f}s", transform=ax.transAxes, ha='center', fontsize=10)
+        # Plot single full uniform cumulative line outside stint loop
+        total_laps = number_of_laps
+        if len(cumulative_times) > 0:
+            cumulative_line = np.array(cumulative_times)
+            ax2.plot(np.arange(len(cumulative_line)), cumulative_line, color='grey', linestyle='-', linewidth=2, label="Cumulative")
+            ax2.fill_between(np.arange(len(cumulative_line)), cumulative_line, color='grey', alpha=0.3)
+
+        for j, pit in enumerate(pits):
+            ax1.axvline(pit, linestyle='--', color='tab:blue', label='Pit(s)' if j == 0 else None)
+
+        ax1.set_title(f"{num_pits} Pit Stop(s) - Total Time: {total_time:.1f}s")
+        ax1.set_xlabel("Lap")
+        ax1.set_ylabel("Lap Time (s)")
+        ax2.set_ylabel("Cumulative Time (s)")
+        ax1.legend(loc='upper left')
 
     plt.tight_layout()
     plt.show()
 
-plot_all_strategies(results)
-
-
-
+# Call the plotting function at the end
+plot_all_optimal_strategies(results)
 
 # --- Save precomputed_time_cache to disk after all computations ---
 # --- Timing: End timer and print elapsed time before saving cache ---
