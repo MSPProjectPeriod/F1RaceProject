@@ -28,9 +28,7 @@
 # === All Imports at the Top ===
 import os
 import pickle
-import time
 import sys
-import math
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -38,6 +36,10 @@ from sympy import symbols, sympify, integrate, lambdify, diff
 from sympy.parsing.sympy_parser import parse_expr
 from itertools import combinations, product, combinations_with_replacement
 from mpl_toolkits.mplot3d import Axes3D
+from collections import defaultdict
+import re
+import math
+import time
 
 # === File Paths (edit these if running on a different computer) ===
 CSV_FILES_DIR = '/Users/foml/coding/MSP/period 6/F1RaceProject/csv_files'
@@ -60,8 +62,8 @@ number_of_laps = 100             # Total number of laps in the race (max lap lim
 average_pit_time = 30.0          # Default average pit stop time (seconds)
 min_lap_buffer = 5               # Laps to avoid at start/end before a pit may occur
 min_lap_between_pits = 5         # Minimum laps between two pit stops
-mode_alpha = 0.2  # Controls how aggressive/durable behavior affects lap time
-best_combo_info = None            # Stores optimal pit stop info for later visualization
+mode_alpha = 0.2                 # Controls how aggressive/durable behavior affects lap time
+best_combo_info = None           # Stores optimal pit stop info for later visualization
 
 
 
@@ -72,15 +74,26 @@ stint_limits_array = [
     [20, 30],   # Stint 3 [soft, hard]
 ]
 
+# Mode impact on lap time and tire life
+# Each mode adjusts lap time and affects how long tires last.
+mode_degradation_factors = {
+    'aggressive': {'lap_time_multiplier': 0.9, 'tire_life_multiplier': 0.9},
+    'neutral': {'lap_time_multiplier': 1.0, 'tire_life_multiplier': 1.0},
+    'durable': {'lap_time_multiplier': 1.1, 'tire_life_multiplier': 1.1}
+}
 
 
 
 
-# Symbolic variables
+
+# Symbolic variables for lap calculations
 x = symbols('x')                 # Primary lap counter for each stint
 u = symbols('u')                 # Reset lap counter after a pit stop
 
 def get_race_files_info(folder=CSV_FILES_DIR):
+    """
+    Scan the CSV_FILES_DIR for race result files and extract season/race info.
+    """
     race_files = []
     for filename in os.listdir(folder): 
         if "csv_results" in filename and filename.endswith(".csv"):
@@ -98,7 +111,6 @@ def get_race_files_info(folder=CSV_FILES_DIR):
                 # Fallback: try to parse from filename if missing
                 if season is None:
                     # Try to find 4-digit year in filename
-                    import re
                     match = re.search(r"\b(20\d{2})\b", filename)
                     if match:
                         season = int(match.group(1))
@@ -113,6 +125,9 @@ def get_race_files_info(folder=CSV_FILES_DIR):
     return race_files
 
 def select_race_file():
+    """
+    Prompt user to select a race file from available CSVs.
+    """
     races = get_race_files_info()
     if not races:
         print("No race data files found in csv_files/. Using default.")
@@ -134,7 +149,7 @@ def select_race_file():
     print("Invalid selection. Using default race data.")
     return None
 
-# Replace your old data_file and df loading with:
+# --- Load race data file and filter by driver ---
 selected_file = select_race_file()
 if selected_file:
     print(f"Loading race data from: {selected_file}")
@@ -154,7 +169,7 @@ else:
         else:
             raise FileNotFoundError("❌ No default or fallback race CSV found in the directory.")
 
-# Your existing code to prompt for driver filter follows here
+# Prompt user for driver filter or use average data
 print("\nAvailable drivers and data types:")
 print(df['driver'].unique())
 driver_filter = input("Enter driver name or leave blank to use average data: ").strip().lower()
@@ -170,7 +185,7 @@ else:
     filtered_df = df[df['driver'].str.upper().str.startswith("AVERAGE_EQUATION")]
     number_of_laps = int(df['Total Laps'].iloc[0])
 
-# Extract average equations by compound
+# --- Extract average equations and std for each tire compound ---
 compound_map = {'Soft': None, 'Medium': None, 'Hard': None}
 compound_std_map = {}
 for compound in compound_map.keys():
@@ -190,15 +205,16 @@ for compound in compound_map.keys():
         compound_std_map[compound.lower()] = 0.0
         print(f"⚠️ No data for {compound}. Setting std to 0.0.")
 
-# After mapping, print warning for missing formulas
+# Warn if any compound formula is missing
 for compound, formula in compound_map.items():
     if formula is None:
         print(f"⚠️ Missing formula for: {compound}")
 
-# Map compound functions
-
-
+# --- Parse tire performance equations ---
 def parse_equation_string(expr_str):
+    """
+    Parse a string equation into a sympy expression.
+    """
     try:
         expr_str = expr_str.replace("^", "**")
         expr_str = expr_str.replace("e**", "exp(1)**")
@@ -216,7 +232,7 @@ if compound_map['Medium']:
 if compound_map['Hard']:
     tire_exprs['hard'] = parse_equation_string(compound_map['Hard'])
 
-# Assign only available stint functions in preferred order: Soft, Medium, Hard
+# Assign stint functions in preferred order: Soft, Medium, Hard
 stint_exprs = []
 if 'soft' in tire_exprs:
     stint_exprs.append(tire_exprs['soft'])
@@ -230,11 +246,11 @@ if len(stint_exprs) < 2:
 
 print(f"✔️ Using tire compounds: {list(tire_exprs.keys())}")
 
-# Fallback: Assign symbolic names
+# Fallback: Assign symbolic names for up to 3 stints
 stint1_func, stint2_func, stint3_func = (stint_exprs + [stint_exprs[-1]] * 3)[:3]
 
 
-# Move degradation_factors definition here before use
+# --- Degradation factors for each driving mode ---
 degradation_factors = {
     'neutral': 1.0,
     'aggressive': 1.1,
@@ -250,14 +266,7 @@ if 'hard' in tire_exprs:
     print("Hard Compound Function:", tire_exprs['hard'])
 
 
-# Map index to tire type and compound from stint_exprs
-
-
 print(f"\nTotal Number of Laps in Race: {number_of_laps}")
-
-
-
-# --- Derived tire max values per mode ---
 
 # --- Load and store soft/hard tire limits per compound for future use ---
 compound_limits = {}
@@ -325,13 +334,11 @@ for compound, modes in tire_max_limits.items():
 
 
 
-# --- Stint mode settings (moved here after stint1_func, stint2_func, stint3_func are defined) ---
+# --- Stint mode settings (adjusted equations for each mode) ---
 stint_base_exprs = [stint1_func, stint2_func, stint3_func]
+mode_order = ['aggressive', 'neutral', 'durable']  # Mode order for reference
 
-# === Global mode order/factor definitions ===
-mode_order = ['aggressive', 'neutral', 'durable']
-
-# --- Define stint_mode_settings before get_mode_func is used ---
+# Precompute adjusted stint equations for each mode
 stint_mode_settings = {}
 for i, base_expr in enumerate(stint_base_exprs):
     stint_mode_settings[i] = {}
@@ -347,51 +354,49 @@ func_index_map = {}
 for idx, func in enumerate([stint1_func, stint2_func, stint3_func]):
     func_index_map[func] = idx
 
-# Initialize function cache if not already present
+# --- Function cache for stint/mode lambdified functions ---
 if 'func_mode_cache' not in globals():
     func_mode_cache = {}
 def get_mode_func(f_idx, mode):
+    """
+    Return a lambdified function for the given stint index and mode.
+    """
     if (f_idx, mode) not in func_mode_cache:
         adjusted_expr = stint_mode_settings[f_idx][mode]
         expr_num = adjusted_expr.subs({x: u})  # ensure all symbolic variables are replaced
         func_mode_cache[(f_idx, mode)] = lambdify(u, expr_num, modules="numpy")
     return func_mode_cache[(f_idx, mode)]
 
- # --- Precompute penalty cache ---
+# --- Penalty cache for stint length penalties (if used) ---
 max_penalty_len = number_of_laps
 penalty_cache = np.cumsum(np.exp(np.arange(1, max_penalty_len + 1) / 5) - 1)
 
 
 
 
+# --- Results and strategy storage ---
 results = []
 simulation_times_array = []
 strategy_data_array = []
 
 
 # === Multi-Pit Stop Strategy Candidates ===
-from itertools import combinations, product
-
 print("\n--- Multi-Pit Stop Strategy Candidates ---")
 
-from itertools import product as iter_product
-from itertools import combinations_with_replacement
-
-# Store results for each multi-pit strategy
-
-
-
+# Loop over possible pit stop counts (1-4)
 for num_pits in [1, 2, 3, 4]:
     num_stints = num_pits + 1
     possible_func_combos = []
     seen_compound_sets = set()
 
+    # Generate all possible combinations of stint functions for the number of stints
     for func_combo in product(stint_exprs, repeat=num_stints):
         compounds_used = []
         for func in func_combo:
             for label, expr in tire_exprs.items():
                 if expr == func:
                     compounds_used.append(label)
+        # Only consider combos using at least 2 different compounds
         if len(set(compounds_used)) >= 2:
             key = tuple(sorted(compounds_used))
             if key not in seen_compound_sets:
@@ -399,28 +404,32 @@ for num_pits in [1, 2, 3, 4]:
                 possible_func_combos.append(func_combo)
 
     pit_positions = range(min_lap_buffer, number_of_laps - min_lap_buffer)
-    # Inserted: seen_keys to deduplicate strategies
-    seen_keys = set()
+    seen_keys = set()  # Deduplicate strategies
     for func_combo in possible_func_combos:
         for pit_combo in combinations(pit_positions, num_pits):
+            # Enforce minimum laps between pit stops
             if any(pit_combo[i+1] - pit_combo[i] < min_lap_between_pits for i in range(len(pit_combo)-1)):
                 continue
+            # Calculate stint lengths from pit positions
             stints = [pit_combo[0]] + [pit_combo[i+1] - pit_combo[i] for i in range(len(pit_combo)-1)] + [number_of_laps - pit_combo[-1]]
             if any(s <= 0 for s in stints):
                 continue
+            # Map stint functions to compound labels
             compounds = []
             for func in func_combo:
                 for label, val in tire_exprs.items():
                     if val == func:
                         compounds.append(label)
                         break
-            # --- Begin new mode trial logic (replaced as per instructions) ---
+            # --- Begin new mode trial logic ---
             from itertools import combinations
-
             n_stints = len(stints)
             valid = False
 
             def check_valid(modes):
+                """
+                Check if a mode assignment is valid for the given stints and compounds.
+                """
                 hard_limit_sum = sum(
                     tire_max_limits[compound][mode]['hard_limit']
                     for stint_len, compound, mode in zip(stints, compounds, modes)
@@ -435,7 +444,7 @@ for num_pits in [1, 2, 3, 4]:
                     return True
                 return False
 
-            # --- Begin replaced mode trial logic ---
+            # Try all-aggressive, then all-neutral, all-durable, then mixed
             if check_valid(['aggressive'] * n_stints):
                 modes = ['aggressive'] * n_stints
                 valid = True
@@ -470,6 +479,7 @@ for num_pits in [1, 2, 3, 4]:
                         valid = True
             # --- End replaced mode trial logic ---
             if valid:
+                # Compute total variance for this strategy
                 total_variance = 0.0
                 for stint_len, compound in zip(stints, compounds):
                     compound_sigma = compound_std_map.get(compound, 0.0)
@@ -483,7 +493,7 @@ for num_pits in [1, 2, 3, 4]:
                 if key in seen_keys:
                     continue
                 seen_keys.add(key)
-             
+                # Store strategy metadata for later analysis
                 strategy_data_array.append({
                     "num_pits": len(pit_combo),
                     "pit_combo": pit_combo,
@@ -493,9 +503,7 @@ for num_pits in [1, 2, 3, 4]:
                     "std_dev": std_dev
                 })
 
-# --- Inserted: After strategy_data_array is populated, summarize best per pits ---
-from collections import defaultdict
-
+# --- Summarize best strategy per pit count ---
 best_per_pits = {}
 strategies_by_pits = defaultdict(list)
 for strat in strategy_data_array:
@@ -504,6 +512,7 @@ for strat in strategy_data_array:
 for pits, strats in strategies_by_pits.items():
     if not strats:
         continue
+    # Only consider strategies that can cover the race distance
     valid_strats = [
         s for s in strats
         if sum(
@@ -513,6 +522,7 @@ for pits, strats in strategies_by_pits.items():
     ]
     if not valid_strats:
         continue
+    # Pick the strategy with the lowest total tire max life
     best = min(
         valid_strats,
         key=lambda s: sum(
@@ -521,50 +531,20 @@ for pits, strats in strategies_by_pits.items():
         )
     )
     best_per_pits[pits] = best
-    # print(f"\n ----- Best strategy for {pits} pit stop(s): -----")
-    # print(f"  Pit Stops: {best['pit_combo']}")
-    # print(f"  Stints: {best['stints']}")
-    # print(f"  Compounds: {best['compounds']}")
-    # print(f"  Modes: {best['modes']}")
-    # print(f"  Total Time: {best['total_time']:.2f} s")
-    results.append((pits, best))
+    # Do NOT append to results here; only append fully formed dicts with total_time in print_initial_optimal_strategies
 
 
-import math
-import time
 
 # --- Step 2: Generalized Optimal Pit Strategy Calculation ---
 optimal_function_indices = set()
 
-func_mode_cache = {}
-mode_factor = {'neutral': 1.0, 'aggressive': 0.9, 'durable': 1.1}
-
-# --- Utility: Get stint mode function (caching for efficiency) ---
-
-# === Helper functions for stint/mode/penalty logic ===
-def compute_adjusted_stint_length(mode_str, stint_len):
-    if '→' in mode_str and '@-' in mode_str:
-        mode_sequence = mode_str.split('@-')[0].split('→')
-        segment_lengths = list(map(int, mode_str.split('@-(')[1][:-1].split(',')))
-        return sum(seg_len * mode_factor[m] for seg_len, m in zip(segment_lengths, mode_sequence))
-    return stint_len * mode_factor[mode_str]
-
-def get_mode_func(f_idx, mode):
-    if (f_idx, mode) not in func_mode_cache:
-        adjusted_expr = stint_mode_settings[f_idx][mode]
-        func_mode_cache[(f_idx, mode)] = lambdify(u, adjusted_expr.subs(x, u), "numpy")
-    return func_mode_cache[(f_idx, mode)]
-
-
-
-# --- Helper: Map stint function to its index for efficient lookup ---
-func_index_map = {}
-for idx, func in enumerate([stint1_func, stint2_func, stint3_func]):
-    func_index_map[func] = idx
-
 # --- Helper: Legality check for stints ---
 def is_stint_legal(f_idx, mode, stint_len):
+    """
+    Check if a stint is legal for the given function index, mode, and stint length.
+    """
     hard_limit = stint_limits_array[f_idx][1]
+    mode_factor = {'neutral': 1.0, 'aggressive': 0.9, 'durable': 1.1}
     if '→' in mode and '@-' in mode:
         mode_sequence = mode.split('@-')[0].split('→')
         segment_lengths = list(map(int, mode.split('@-(')[1][:-1].split(',')))
@@ -578,13 +558,11 @@ def is_stint_legal(f_idx, mode, stint_len):
         adj_len = stint_len * mode_factor[mode]
         return adj_len <= hard_limit
 
-
-
-
 # --- 3D Visualization of Pit Strategy Surface ---
-from mpl_toolkits.mplot3d import Axes3D
-
 def visualize_pit_strategy_surface():
+    """
+    Plot a 3D surface of total race time as a function of pit stop laps.
+    """
     fig = plt.figure(figsize=(10, 7))
     ax = fig.add_subplot(111, projection='3d')
 
@@ -645,19 +623,11 @@ def visualize_pit_strategy_surface():
     plt.show()
 
 
-# --- Plot Lap Times with Optimal Pit Strategy ---
-
-
-
-
-
-import matplotlib.pyplot as plt
-import numpy as np
-
-
 # --- Utility: Get plot save prefix with folder ---
 def get_plot_save_prefix():
-    import re
+    """
+    Generate a filename prefix for saving plots based on race/driver info.
+    """
     plots_dir = "plots"
     if not os.path.exists(plots_dir):
         os.makedirs(plots_dir)
@@ -685,8 +655,9 @@ def get_plot_save_prefix():
     return f"{plots_dir}/{season}_{year}_{race_clean}_{driver_clean}"
 
 def plot_all_optimal_strategies(results):
-    import matplotlib.pyplot as plt
-    import numpy as np
+    """
+    Plot lap times for all optimal strategies (1-4 pit stops) in subplots.
+    """
 
     strategies_dict = {p: s for p, s in results if s is not None}
     fig, axs = plt.subplots(2, 2, figsize=(14, 8))
@@ -706,16 +677,26 @@ def plot_all_optimal_strategies(results):
         lap_offset = 0
         pit_stops = np.cumsum(strategy['stints'])[:-1]
 
+        num_stints = len(strategy['stints'])
         for stint_idx, (stint_len, compound, mode) in enumerate(zip(strategy['stints'], strategy['compounds'], strategy['modes'])):
             f_idx = func_index_map[tire_exprs[compound]]
             mode_func = get_mode_func(f_idx, mode)
-            stint_laps = np.arange(0, stint_len)
-            stint_times = mode_func(stint_laps)
+            # Determine the correct lap range for each stint
+            # For all but the last stint, include the pit stop lap (so add +1 to stint_len)
+            if stint_idx < num_stints - 1:
+                laps = np.arange(0, stint_len + 1)
+            else:
+                laps = np.arange(0, stint_len)
+            stint_times = mode_func(laps)
             # --- Inserted: Apply ±10% lap time adjustment by mode ---
             mode_time_multiplier = {'neutral': 1.0, 'aggressive': 0.9, 'durable': 1.1}
             stint_times = stint_times * mode_time_multiplier[mode]
 
-            lap_numbers = np.arange(lap_offset, lap_offset + stint_len)
+            # Lap numbers in the global race for this stint
+            if stint_idx < num_stints - 1:
+                lap_numbers = np.arange(lap_offset, lap_offset + stint_len + 1)
+            else:
+                lap_numbers = np.arange(lap_offset, lap_offset + stint_len)
 
             if stint_idx > 0:
                 stint_times[0] += average_pit_time
@@ -740,9 +721,22 @@ def plot_all_optimal_strategies(results):
                 label='Lap -3σ' if stint_idx == 0 else ""
             )
 
-            times[lap_numbers] = stint_times
-            lap_offset += stint_len
+            # Assign the calculated stint times to the global times array, but only for valid indices
+            # For all but the last stint, the last lap overlaps with the next stint's first lap (pit stop lap),
+            # so only fill up to the last lap (not including the extra pit stop lap) in the times array.
+            if stint_idx < num_stints - 1:
+                # Only fill the first stint_len laps (exclude the extra pit stop lap from times array)
+                times[lap_numbers[:stint_len]] = stint_times[:stint_len]
+                lap_offset += stint_len
+            else:
+                # Last stint: fill all
+                times[lap_numbers] = stint_times
+                lap_offset += stint_len
 
+        for pit_lap in pit_stops:
+            ax.axvline(x=pit_lap + 1, color='red', linestyle='--', linewidth=1.5, label='Pit Stop' if pit_lap == pit_stops[0] else "")
+
+        # === Add vertical lines and scatter points at pit stop boundaries for both adjacent stints ===
         for pit_lap in pit_stops:
             ax.axvline(x=pit_lap + 1, color='red', linestyle='--', linewidth=1.5, label='Pit Stop' if pit_lap == pit_stops[0] else "")
 
@@ -778,8 +772,6 @@ def plot_strategy_summary_with_std(results):
     """
     Plot total race time ± 3σ for each optimal strategy as points with error bars.
     """
-    import matplotlib.pyplot as plt
-    import numpy as np
 
     labels = []
     times = []
@@ -856,8 +848,8 @@ def print_initial_optimal_strategies(strategy_data_array):
         print(f"  Compounds: {best['compounds']}")
         print(f"  Modes: {best['modes']}")
         tire_life_sum = sum(
-            tire_max_limits[compound][mode]['hard_limit']
-            for stint_len, compound, mode in zip(best["stints"], best["compounds"], best["modes"])
+            tire_max_limits[compound]['durable']['hard_limit']
+            for compound in best['compounds']
         )
         print(f"  Theoretical Max Tire Life: {tire_life_sum} laps")
         std_dev = best.get('std_dev', 0.0)
@@ -875,7 +867,7 @@ def print_initial_optimal_strategies(strategy_data_array):
             stint_times = mode_func(laps) * mode_time_multiplier[mode]
             total_time += np.sum(stint_times)
         print(f"  Total Time: {total_time:.2f} s ± {3 * std_dev:.2f}s (3σ)")
-        # --- Inserted: Append to results for plotting functions ---
+        # --- Append to results for plotting functions (only here, with total_time) ---
         results.append((pits, {
             "pit_combo": best['pit_combo'],
             "stints": best['stints'],
@@ -885,10 +877,94 @@ def print_initial_optimal_strategies(strategy_data_array):
             "total_time": total_time,
             "total_laps": sum(best['stints'])
         }))
+        # --- New: Test all compound permutations for this stint structure ---
+        test_compound_permutations_for_strategy(results[-1][1])
+
+
+# --- New function: Test all compound permutations for a given strategy's stint lengths/pit structure ---
+def test_compound_permutations_for_strategy(best_strategy):
+    """
+    For a given best strategy (as dict), test all permutations of compound assignments
+    for the same number of stints, with fixed pit stops and modes.
+    Prints the compound combination with the lowest total time.
+    """
+    from itertools import product
+    stint_lens = list(best_strategy["stints"])
+    pit_combo = best_strategy["pit_combo"]
+    modes = best_strategy["modes"]
+    num_stints = len(stint_lens)
+    # Only consider available compounds
+    compounds_available = list(tire_exprs.keys())
+    # All possible compound assignments (with replacement, e.g. soft, soft, hard is allowed)
+    all_compound_combos = list(product(compounds_available, repeat=num_stints))
+    best_time = float('inf')
+    best_combo = None
+    best_modes = None
+    best_stints = None
+    best_pits = None
+    for combo in all_compound_combos:
+        # Skip combos that do not use at least two different compounds
+        if len(set(combo)) < 2:
+            continue
+        legal = True
+        for stint_len, compound, mode in zip(stint_lens, combo, modes):
+            if mode not in allowed_mode_cache.get((compound, stint_len), []):
+                legal = False
+                break
+        if not legal:
+            continue
+        # Compute total time
+        total_time = len(pit_combo) * average_pit_time
+        mode_time_multiplier = {'neutral': 1.0, 'aggressive': 0.9, 'durable': 1.1}
+        for stint_len, compound, mode in zip(stint_lens, combo, modes):
+            f_idx = func_index_map[tire_exprs[compound]]
+            mode_func = get_mode_func(f_idx, mode)
+            laps = np.arange(0, stint_len)
+            stint_times = mode_func(laps) * mode_time_multiplier[mode]
+            total_time += np.sum(stint_times)
+        if total_time < best_time:
+            best_time = total_time
+            best_combo = combo
+            best_modes = modes
+            best_stints = stint_lens
+            best_pits = pit_combo
+    if best_combo is not None:
+        print(f"\n  >>> Compound permutation with lowest total time for this stint structure:")
+        print(f"      Pit Stops: {best_pits}")
+        print(f"      Stints: {best_stints}")
+        print(f"      Compounds: {best_combo}")
+        print(f"      Modes: {best_modes}")
+        print(f"      Total Race Time: {best_time:.2f} s")
+        # Update the last element in the global results list with the new best combo
+        # Retain pit_combo, stints, modes, std_dev, total_laps; update compounds and total_time
+        if results:
+            # Compute std_dev for the new combo (same as before, using new compounds)
+            total_variance = 0.0
+            for stint_len, compound in zip(best_stints, best_combo):
+                compound_sigma = compound_std_map.get(compound, 0.0)
+                total_variance += stint_len * (compound_sigma ** 2)
+            std_dev = math.sqrt(total_variance)
+            total_laps = sum(best_stints)
+            results[-1] = (
+                results[-1][0],
+                {
+                    "pit_combo": best_pits,
+                    "stints": best_stints,
+                    "compounds": list(best_combo),
+                    "modes": list(best_modes),
+                    "std_dev": std_dev,
+                    "total_time": best_time,
+                    "total_laps": total_laps
+                }
+            )
+    else:
+        print("\n  ⚠️ No legal compound permutation found for this stint structure.")
 
 
 def main():
-    # --- Main execution order for the script ---
+    """
+    Main execution order for the script.
+    """
     # 1. Print initial optimal strategies for each pit stop count
     print_initial_optimal_strategies(strategy_data_array)
 
@@ -910,6 +986,9 @@ def main():
 
 # --- Refine strategy function ---
 def refine_strategy(best, number_of_laps):
+    """
+    Try to refine a given strategy by adjusting pit stops and modes for better total time.
+    """
     from itertools import product
     pit_variants = []
     # Generate pit variants with ±5 lap adjustments
@@ -962,10 +1041,103 @@ def refine_strategy(best, number_of_laps):
         print("\n⚠️ No valid refined strategy found.")
 
 
+# --- Evaluate a fixed tire layout (e.g., ["soft", "medium", "soft"]) ---
+def evaluate_fixed_tire_layout(layout):
+    """
+    Given a fixed list of compounds (e.g., ["soft", "medium", "soft"]), check all legal pit stop combinations
+    and mode assignments, and print the best total race time using the fixed layout.
+    """
+    from itertools import combinations, product
+    print(f"\n=== Evaluating Fixed Tire Layout: {layout} ===")
+    num_stints = len(layout)
+    num_pits = num_stints - 1
+    pit_positions = range(min_lap_buffer, number_of_laps - min_lap_buffer)
+    best_result = None
+    best_time = float('inf')
+    best_modes = None
+    best_pits = None
+    best_stints = None
+    for pit_combo in combinations(pit_positions, num_pits):
+        # Enforce minimum laps between pit stops
+        if any(pit_combo[i+1] - pit_combo[i] < min_lap_between_pits for i in range(len(pit_combo)-1)):
+            continue
+        stints = [pit_combo[0]] + [pit_combo[i+1] - pit_combo[i] for i in range(len(pit_combo)-1)] + [number_of_laps - pit_combo[-1]]
+        if any(s <= 0 for s in stints):
+            continue
+        # For each stint, get allowed modes
+        allowed_modes_per_stint = []
+        legal = True
+        for stint_len, compound in zip(stints, layout):
+            allowed_modes = allowed_mode_cache.get((compound, stint_len), [])
+            if not allowed_modes:
+                legal = False
+                break
+            allowed_modes_per_stint.append(allowed_modes)
+        if not legal:
+            continue
+        # Try all combinations of allowed modes for these stints
+        for modes in product(*allowed_modes_per_stint):
+            # Check if this mode assignment is legal for the whole layout
+            # (Redundant, but keeps logic clear)
+            valid = True
+            for stint_len, compound, mode in zip(stints, layout, modes):
+                if mode not in allowed_mode_cache.get((compound, stint_len), []):
+                    valid = False
+                    break
+            if not valid:
+                continue
+            # Compute total time for this strategy
+            total_time = num_pits * average_pit_time
+            mode_time_multiplier = {'neutral': 1.0, 'aggressive': 0.9, 'durable': 1.1}
+            for stint_idx, (stint_len, compound, mode) in enumerate(zip(stints, layout, modes)):
+                f_idx = func_index_map[tire_exprs[compound]]
+                mode_func = get_mode_func(f_idx, mode)
+                laps = np.arange(0, stint_len)
+                stint_times = mode_func(laps) * mode_time_multiplier[mode]
+                total_time += np.sum(stint_times)
+            if total_time < best_time:
+                best_time = total_time
+                best_modes = modes
+                best_pits = pit_combo
+                best_stints = stints
+    if best_pits is not None:
+        print(f"Best pit stops: {best_pits}")
+        print(f"Stints: {best_stints}")
+        print(f"Compounds: {layout}")
+        print(f"Modes: {best_modes}")
+        print(f"Total Race Time: {best_time:.2f} s")
+    else:
+        print("No legal strategy found for this layout.")
+
+    # --- Diagnostic: Compare lap times for soft, medium, and hard tires over first 20 laps using neutral mode ---
+    print("\n--- Diagnostic: Lap Time Comparison for Soft, Medium, Hard (First 20 Laps, Neutral Mode) ---")
+    compounds = ["soft", "medium", "hard"]
+    lap_range = np.arange(0, 20)
+    mode = "neutral"
+    mode_time_multiplier = {'neutral': 1.0, 'aggressive': 0.9, 'durable': 1.1}
+    lap_times = {}
+    for compound in compounds:
+        if compound not in tire_exprs:
+            print(f"  {compound.capitalize()}: Not available in model.")
+            continue
+        f_idx = func_index_map[tire_exprs[compound]]
+        mode_func = get_mode_func(f_idx, mode)
+        times = mode_func(lap_range) * mode_time_multiplier[mode]
+        lap_times[compound] = times
+        print(f"  {compound.capitalize()} Lap Times (laps 1-20):")
+        print("   ", np.round(times, 2))
+        print(f"    Total: {np.sum(times):.2f} s, Avg: {np.mean(times):.2f} s")
+    # Quick summary: which is fastest over 20 laps?
+    available = [(c, np.sum(t)) for c, t in lap_times.items()]
+    if available:
+        fastest = min(available, key=lambda x: x[1])
+        print(f"\n  >> Fastest over first 20 laps: {fastest[0].capitalize()} ({fastest[1]:.2f} s)")
+
+
 # --- Run all functions in order ---
 if __name__ == "__main__":
     main()
+    # --- Demonstrate fixed layout evaluation ---
+    evaluate_fixed_tire_layout(["soft", "medium", "soft"])
 
 
-
-    results.clear()
