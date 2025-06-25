@@ -16,7 +16,7 @@ from scipy.optimize import minimize_scalar
 import itertools
 
 # Load tire info at the beginning
-tire_info_df = pd.read_excel('book_tire_information.xlsx')
+tire_info_df = pd.read_excel('tire_information.xlsx')
 
 ### OBJECTS
 
